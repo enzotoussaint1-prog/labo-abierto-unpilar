@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Labo Abierto UNPILAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#12283d; --ink2:#4a5d70; --muted:#7b8a99; --line:#dce5ee; --bg:#f4f7fa; --card:#fff;
+  --brand:#00579e; --brand2:#e1edf8; --accent:#e08a1e; --accent2:#fdf1e1;
+  --ok:#1f8a4c; --ok2:#e4f4ea; --warn:#b7791f; --warn2:#fbf0dc; --bad:#b4423a; --bad2:#f8e5e3; --grey2:#eef1f0;
+  --wa:#075e54; --wa2:#dcf8c6; --wabg:#ece5dd;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:var(--bg);font-size:15px;line-height:1.45}
+header{background:var(--brand);color:#fff;padding:18px 24px 0}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;max-width:1180px;margin:0 auto}
+.logo-img{height:44px;width:auto;display:block}
+.logo{width:42px;height:42px;border-radius:10px;background:#fff;display:grid;place-items:center}
+h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-.01em}
+.sub{font-size:13px;opacity:.85}
+.user{margin-left:auto;font-size:13px;background:rgba(255,255,255,.14);padding:6px 12px;border-radius:999px}
+nav{display:flex;gap:4px;max-width:1180px;margin:14px auto 0;overflow-x:auto}
+nav button{background:none;border:0;color:#cfe1f3;font:inherit;font-weight:500;padding:10px 14px;border-radius:10px 10px 0 0;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--bg);color:var(--ink)}
+main{max-width:1180px;margin:0 auto;padding:22px 24px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+.muted{color:var(--muted)} .small{font-size:13px}
+h2{font-size:19px;margin:0 0 4px} h3{font-size:16px;margin:0 0 8px}
+.steps{display:flex;gap:6px;margin:0 0 18px;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:6px 12px 6px 6px;border-radius:999px;background:#fff;border:1px solid var(--line)}
+.step b{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--grey2);font-size:12px}
+.step.on{color:var(--ink);border-color:var(--brand)} .step.on b{background:var(--brand);color:#fff}
+.step.done b{background:var(--brand2);color:var(--brand)}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:14px}
+.opt{border:1.5px solid var(--line);border-radius:12px;padding:14px;background:#fff;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.opt:hover:not([disabled]){border-color:var(--brand)}
+.opt.sel{border-color:var(--brand);background:var(--brand2)}
+.opt[disabled]{opacity:.5;cursor:not-allowed}
+.opt .t{font-weight:600}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;background:var(--brand);color:#fff}
+.btn.sec{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+.btn.warn{background:var(--accent)}
+.btn.bad{background:var(--bad)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.nav-actions{display:flex;justify-content:space-between;margin-top:18px;gap:10px}
+.counter{display:flex;align-items:center;border:1.5px solid var(--line);border-radius:10px;overflow:hidden}
+.counter button{border:0;background:#fff;width:38px;height:38px;font-size:18px;cursor:pointer}
+.counter span{width:44px;text-align:center;font-weight:700}
+.notice{border-radius:12px;padding:12px 14px;font-size:14px;margin-top:14px}
+.notice.info{background:var(--brand2)} .notice.warn{background:var(--warn2)} .notice.ok{background:var(--ok2)} .notice.bad{background:var(--bad2)}
+/* grilla */
+.gridwrap{overflow-x:auto;margin-top:14px}
+table.grid{border-collapse:separate;border-spacing:6px;min-width:860px;width:100%}
+.grid th{font-size:13px;font-weight:600;color:var(--ink2);text-align:center;padding:4px}
+.grid th.franja{text-align:left;width:118px}
+.franja .f{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.cell{width:100%;min-height:62px;border-radius:10px;border:1.5px solid transparent;padding:7px 8px;font:inherit;font-size:12px;text-align:left;cursor:pointer;line-height:1.3}
+.cell .p{font-weight:600;font-size:12px}
+.cell .q{font-size:12px}
+.c-free{background:#fff;border-color:var(--line)} .c-free:hover{border-color:var(--brand)}
+.c-same{background:var(--ok2);border-color:#bfe3cc} .c-same:hover{border-color:var(--ok)}
+.c-few{background:var(--warn2);border-color:#f0d9ad}
+.c-full{background:var(--accent2);border-color:#f3cf9f}
+.c-other{background:var(--grey2);color:var(--muted);cursor:not-allowed}
+.c-sel{outline:3px solid var(--brand);outline-offset:1px}
+.c-none{background:transparent;border:1.5px dashed var(--line);color:var(--muted);cursor:default;display:grid;place-items:center}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin-top:10px}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:5px;border:1.5px solid var(--line)}
+.bar{height:6px;border-radius:3px;background:rgba(0,0,0,.08);margin-top:5px;overflow:hidden}
+.bar>div{height:100%;background:var(--ok)}
+label.f{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}
+input[type=text],input[type=tel],textarea,select{width:100%;font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:#fff}
+textarea{min-height:70px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:760px){.two{grid-template-columns:1fr}}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:14px}
+.kv div:nth-child(odd){color:var(--muted)}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px}
+.p-res{background:var(--brand2);color:var(--brand)} .p-ok{background:var(--ok2);color:var(--ok)} .p-bad{background:var(--bad2);color:var(--bad)} .p-warn{background:var(--warn2);color:var(--warn)}
+.list{display:grid;gap:12px}
+.res{display:flex;gap:14px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
+.res .when{font-weight:700}
+/* simulador */
+.sim{display:grid;grid-template-columns:330px 1fr;gap:20px;margin-top:16px}
+@media(max-width:860px){.sim{grid-template-columns:1fr}}
+.phone{border-radius:28px;background:#111;padding:10px;max-width:330px}
+.screen{border-radius:20px;overflow:hidden;background:var(--wabg);height:520px;display:flex;flex-direction:column}
+.wahead{background:var(--wa);color:#fff;padding:12px 14px;font-size:14px;display:flex;gap:10px;align-items:center}
+.wahead .av{width:32px;height:32px;border-radius:50%;background:#fff;display:grid;place-items:center}
+.chat{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:86%;padding:8px 10px;border-radius:10px;font-size:13px;background:#fff;box-shadow:0 1px 1px rgba(0,0,0,.08);white-space:pre-line}
+.msg.me{align-self:flex-end;background:var(--wa2)}
+.msg.sys{align-self:center;background:#fff7d6;font-size:12px;text-align:center;max-width:95%}
+.msg .tm{display:block;text-align:right;font-size:10px;color:#8a8a8a;margin-top:3px}
+.chatbtns{display:flex;gap:6px;padding:8px;background:#f0f0f0}
+.chatbtns button{flex:1;font:inherit;font-size:13px;font-weight:600;border:0;border-radius:18px;padding:9px;background:#fff;color:var(--wa);cursor:pointer}
+.chatbtns button[disabled]{opacity:.4;cursor:not-allowed}
+.tl{position:relative;margin:8px 0 18px;padding-left:22px}
+.tl:before{content:"";position:absolute;left:7px;top:4px;bottom:4px;width:2px;background:var(--line)}
+.tli{position:relative;padding:4px 0 12px}
+.tli:before{content:"";position:absolute;left:-20px;top:7px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid var(--line)}
+.tli.now:before{border-color:var(--accent);background:var(--accent)}
+.tli.past:before{border-color:var(--brand);background:var(--brand)}
+.tli .h{font-weight:600;font-size:14px}
+.log{font-size:13px;border-top:1px solid var(--line);padding-top:10px;margin-top:6px;max-height:190px;overflow-y:auto}
+.log div{padding:3px 0}
+.mini{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.mini .box{border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;background:#fff}
+/* normas / foro */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--brand2);color:var(--brand);margin:0 4px 4px 0}
+ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
+.thread{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
+.thread .ans{margin-top:10px;padding:10px 12px;border-left:3px solid var(--brand);background:var(--bg);border-radius:0 8px 8px 0;font-size:14px}
+#qrbox{width:200px;height:200px;margin:10px auto;display:grid;place-items:center}
+.poster{max-width:360px;margin:0 auto;text-align:center;border:2px solid var(--ink);border-radius:16px;padding:22px;background:#fff}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <img src="assets/logo-unpilar.png" alt="Universidad Nacional de Pilar" class="logo-img">
+    <div>
+      <h1>Labo Abierto UNPILAR</h1>
+      <div class="sub">Prototipo navegable · datos de ejemplo</div>
+    </div>
+    <div class="user" id="userpill">Sin ingresar</div>
+  </div>
+  <nav id="tabs">
+    <button data-v="reservar" class="on">Reservar turno</button>
+    <button data-v="mis">Mis turnos y avisos</button>
+    <button data-v="normas">Normas por práctica</button>
+    <button data-v="reglas">Reglas de uso</button>
+    <button data-v="foro">Foro de Laboratorio</button>
+    <button data-v="qr">Cartel QR</button>
+  </nav>
+</header>
+
+<main>
+  <!-- RESERVAR -->
+  <section id="v-reservar">
+    <div class="steps" id="steps"></div>
+    <div class="card" id="wizard"></div>
+  </section>
+
+  <!-- MIS TURNOS -->
+  <section id="v-mis" class="hidden">
+    <div class="card">
+      <h2>Mis turnos</h2>
+      <p class="muted small" style="margin:0">Elegí un turno y tocá “Simular avisos” para ver cómo funciona la confirmación por WhatsApp y la lista de espera.</p>
+      <div class="list" id="mylist" style="margin-top:14px"></div>
+    </div>
+    <div class="card hidden" id="simcard" style="margin-top:18px"></div>
+  </section>
+
+  <!-- NORMAS -->
+  <section id="v-normas" class="hidden">
+    <div class="card" style="margin-bottom:16px">
+      <h2>Normas y precauciones por práctica</h2>
+      <p class="muted small" style="margin:0">Al reservar, cada persona recibe por correo y WhatsApp el kit de la práctica que eligió. Los datos son de ejemplo: el equipo docente completa los reales.</p>
+    </div>
+    <div class="cards" id="normcards"></div>
+  </section>
+
+  <!-- REGLAS -->
+  <section id="v-reglas" class="hidden">
+    <div class="two">
+      <div class="card">
+        <h2>Cómo se organizan los turnos</h2>
+        <ul class="clean">
+          <li>Cada jornada tiene <b>dos turnos de 2 horas</b>: mañana 8–10 y 10–12 · tarde 13–15 y 15–17 · noche 18–20 y 20–22. Los sábados, solo mañana y tarde.</li>
+          <li>El laboratorio es un espacio único y chico: <b>en cada turno se hace una sola práctica</b>. La primera reserva define la práctica del turno; después, solo pueden sumarse quienes hagan esa misma práctica.</li>
+          <li>El cupo es de <b>12 personas por turno</b> y se descuenta por día y turno, sin importar la carrera.</li>
+          <li><b>La reserva es individual:</b> cada estudiante ingresa con sus datos (DNI, correo institucional y celular) y toma su propio turno. No hay reservas grupales ni a nombre de otra persona.</li>
+          <li>Se reserva como en unpilarapp: <b>Laboratorio → Área (carrera) → Práctica → Fecha y horario → Confirmación</b>.</li>
+          <li>Máximo 2 turnos activos por persona. Dos turnos sin confirmar o sin asistir suspenden las reservas por una semana.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>Confirmación y lista de espera</h2>
+        <div class="tl">
+          <div class="tli past"><div class="h">24 h antes</div><div class="small muted">Llega el WhatsApp para confirmar o cancelar.</div></div>
+          <div class="tli past"><div class="h">Si cancela</div><div class="small muted">El lugar vuelve a la turnera en ese momento.</div></div>
+          <div class="tli now"><div class="h">8 h antes</div><div class="small muted">Vence el plazo. Si no respondió, el turno se libera solo y se avisa a la lista de espera.</div></div>
+          <div class="tli"><div class="h">3 h antes</div><div class="small muted">Vencen las 5 h de la lista de espera. Los lugares sin confirmar quedan libres para cualquiera.</div></div>
+          <div class="tli"><div class="h">Inicio del turno</div></div>
+        </div>
+        <div class="notice warn small">Turnos de 8 y 10 h: como “8 h antes” cae de noche, el plazo vence a las 20:00 del día anterior y el aviso a la lista de espera sale a esa hora (a definir con el laboratorio).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORO -->
+  <section id="v-foro" class="hidden">
+    <div class="two">
+      <div>
+        <h2 style="margin-bottom:12px">Foro de Laboratorio</h2>
+        <div class="list" id="threads"></div>
+      </div>
+      <div class="card" style="align-self:start">
+        <h3>Hacé tu consulta</h3>
+        <form id="qform">
+          <label class="f" for="qprac">Práctica</label>
+          <select id="qprac"></select>
+          <label class="f" for="qtext">Tu pregunta</label>
+          <textarea id="qtext" placeholder="Ej.: ¿Cómo enrazo el matraz sin pasarme?"></textarea>
+          <button class="btn" style="margin-top:12px" type="submit">Publicar</button>
+        </form>
+        <p class="small muted">Acceden todas las personas que reservaron al menos un turno, sin importar comisión ni carrera. Las mejores respuestas pasan al Banco de dudas.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- QR -->
+  <section id="v-qr" class="hidden">
+    <div class="poster">
+      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Puerta del laboratorio</div>
+      <h2 style="font-size:24px;margin:6px 0">Labo Abierto UNPILAR</h2>
+      <div>Escaneá para reservar tu turno<br>y ver las normas de tu práctica</div>
+      <div id="qrbox"></div>
+      <div class="small muted">Turnos de 2 h · 12 lugares · una práctica por turno</div>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+/* ===================== DATOS DE EJEMPLO ===================== */
+const CAP = 12;
+const LABS = [
+  {id:'bio', name:'Laboratorio de Biotecnología y Alimentos', desc:'Prácticas de química y biología', active:true,
+   areas:[{id:'biotec',name:'Biotecnología'},{id:'alim',name:'Alimentos'}]},
+  {id:'sis', name:'Laboratorio de Sistemas y Tecnologías Aplicadas', desc:'No incluido en este prototipo', active:false, areas:[]},
+  {id:'exp', name:'Exploratorio de Narrativas y Tecnologías', desc:'No incluido en este prototipo', active:false, areas:[]}
+];
+const PRACT = {
+  sol:{name:'Preparación de soluciones', areas:['biotec','alim'], equipo:'Balanza, material de vidrio',
+       epp:'Guardapolvo, antiparras y guantes', prec:['Agregar siempre el ácido sobre el agua, nunca al revés','Rotular cada recipiente','Limpiar la balanza después de usarla']},
+  micro:{name:'Uso de microscopio', areas:['biotec','alim'], equipo:'Microscopios ópticos',
+       epp:'Guardapolvo', prec:['Trasladar el microscopio con las dos manos','Usar papel especial para limpiar lentes','Bajar la platina antes de cambiar de objetivo']},
+  titu:{name:'Titulación ácido-base', areas:['biotec','alim'], equipo:'Buretas, pipetas',
+       epp:'Guardapolvo, antiparras y guantes', prec:['No pipetear con la boca: usar propipeta','Descartar residuos líquidos en el bidón indicado','Enjuagar la bureta antes de cargarla']},
+  cult:{name:'Cultivo y tinción', areas:['biotec'], equipo:'Mechero, material biológico',
+       epp:'Guardapolvo, guantes y cabello recogido', prec:['Desinfectar la mesada antes y después','Trabajar cerca del mechero','Descartar el material en el recipiente de residuos biológicos']}
+};
+const TURNOS = [
+  {id:0,f:'Mañana',ini:8,fin:10},{id:1,f:'Mañana',ini:10,fin:12},
+  {id:2,f:'Tarde',ini:13,fin:15},{id:3,f:'Tarde',ini:15,fin:17},
+  {id:4,f:'Noche',ini:18,fin:20},{id:5,f:'Noche',ini:20,fin:22}
+];
+const DNAMES = ['dom','lun','mar','mié','jue','vie','sáb'];
+const DAYS = [];
+for(let i=0;i<6;i++){ DAYS.push(new Date(2026,10,9+i)); } // lun 9/11 a sáb 14/11
+const dayLabel = d => DNAMES[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
+const turnoExists = (di,ti) => !(DAYS[di].getDay()===6 && ti>=4);
+const hh = h => (h<10?'0':'')+h+':00';
+const turnoLabel = t => hh(t.ini)+' a '+hh(t.fin);
+
+// estado de los turnos: practica asignada, lugares ocupados, lista de espera
+const SLOTS = {};
+const key = (di,ti)=>di+'-'+ti;
+DAYS.forEach((d,di)=>TURNOS.forEach((t,ti)=>{ if(turnoExists(di,ti)) SLOTS[key(di,ti)]={prac:null,booked:0,area:null,wait:[]}; }));
+function seed(di,ti,prac,booked,wait){ Object.assign(SLOTS[key(di,ti)],{prac,booked,wait:wait||[]}); }
+seed(0,0,'sol',12,['Lucía P.']); seed(0,1,'titu',9); seed(0,3,'micro',4); seed(0,4,'sol',7);
+seed(1,0,'titu',12,['Martín G.','Sofía R.']); seed(1,2,'cult',11); seed(1,3,'sol',3); seed(1,5,'micro',10);
+seed(2,0,'micro',6); seed(2,1,'sol',12); seed(2,2,'titu',8); seed(2,3,'titu',12,['Martín G.']); seed(2,4,'sol',2);
+seed(3,1,'cult',5); seed(3,2,'sol',10); seed(3,3,'titu',12,['Julián T.']); seed(3,4,'titu',6);
+seed(4,0,'sol',8); seed(4,2,'micro',12); seed(4,3,'titu',4);
+seed(5,0,'titu',10); seed(5,1,'sol',5); seed(5,2,'cult',12);
+
+// turno ya reservado por Ana (para el simulador)
+const MY = [
+  {id:1, di:2, ti:3, prac:'titu', lab:'bio', area:'biotec', n:1, status:'reservado'}
+];
+
+/* ===================== NAVEGACIÓN ===================== */
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>show(b.dataset.v));
+function show(v){
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  ['reservar','mis','normas','reglas','foro','qr'].forEach(x=>document.getElementById('v-'+x).classList.toggle('hidden',x!==v));
+  if(v==='mis') renderMine();
+  if(v==='qr') renderQR();
+  window.scrollTo(0,0);
+}
+
+/* ===================== RESERVA (asistente) ===================== */
+const W = {step:1, lab:null, area:null, prac:null, n:1, slot:null, phone:'11 5555-1234', consent:true};
+const STEPS = ['Laboratorio','Área','Práctica','Fecha y horario','Confirmación'];
+function renderSteps(){
+  document.getElementById('steps').innerHTML = STEPS.map((s,i)=>
+    `<div class="step ${i+1===W.step?'on':(i+1<W.step?'done':'')}"><b>${i+1<W.step?'✓':i+1}</b>${s}</div>`).join('');
+}
+let USER=null;
+function activeCount(){ return MY.filter(r=>['reservado','confirmado'].includes(r.status)).length; }
+function renderLogin(){
+  document.getElementById('steps').innerHTML='';
+  document.getElementById('wizard').innerHTML=`<div class="two"><div><h2>Ingresá con tus datos</h2>
+    <p class="muted small">La turnera es individual: cada estudiante entra con sus propios datos y toma su turno. Los avisos de confirmación llegan a tu WhatsApp.</p>
+    <form id="login">
+      <label class="f" for="lname">Nombre y apellido</label><input type="text" id="lname" value="Ana López" required>
+      <label class="f" for="ldni">DNI</label><input type="text" id="ldni" value="40.123.456" required>
+      <label class="f" for="lmail">Correo institucional</label><input type="text" id="lmail" value="ana.lopez@unpilar.edu.ar" required>
+      <label class="f" for="lphone">Celular (WhatsApp)</label><input type="tel" id="lphone" value="11 5555-1234" required>
+      <button class="btn" style="margin-top:16px" type="submit">Ingresar a la turnera</button>
+    </form></div>
+    <div class="notice info" style="align-self:start"><b>Cómo funciona</b><br>1. Ingresás con tus datos.<br>2. Elegís laboratorio, área (carrera) y práctica.<br>3. Tomás tu lugar en un turno de 2 h.<br>4. Un día antes confirmás por WhatsApp.<br><br><span class="small">Datos de ejemplo: podés ingresar con los que ya están cargados.</span></div></div>`;
+  document.getElementById('login').onsubmit=e=>{e.preventDefault();
+    const name=document.getElementById('lname').value.trim()||'Ana López';
+    USER={name,dni:document.getElementById('ldni').value,mail:document.getElementById('lmail').value,phone:document.getElementById('lphone').value,
+          first:name.split(' ')[0], short:name.split(' ')[0]+' '+(name.split(' ')[1]||'').charAt(0)+'.'};
+    document.getElementById('userpill').textContent=name+' · DNI '+USER.dni;
+    renderWizard();};
+}
+function renderWizard(){
+  if(!USER){ renderLogin(); return; }
+  renderSteps();
+  const el = document.getElementById('wizard');
+  let h='';
+  if(W.step===1){
+    h=`<h2>Elegí el laboratorio</h2><p class="muted small" style="margin:0">Igual que en Espacios y recursos de unpilarapp.</p>
+    <div class="opts">${LABS.map(l=>`<button class="opt ${W.lab===l.id?'sel':''}" ${l.active?'':'disabled'} data-lab="${l.id}"><div class="t">${l.name}</div><div class="small muted">${l.desc}</div></button>`).join('')}</div>`;
+  }
+  if(W.step===2){
+    const lab=LABS.find(l=>l.id===W.lab);
+    h=`<h2>Elegí tu área (carrera)</h2><p class="muted small" style="margin:0">${lab.name}</p>
+    <div class="opts">${lab.areas.map(a=>`<button class="opt ${W.area===a.id?'sel':''}" data-area="${a.id}"><div class="t">${a.name}</div><div class="small muted">${Object.values(PRACT).filter(p=>p.areas.includes(a.id)).length} prácticas disponibles</div></button>`).join('')}</div>`;
+  }
+  if(W.step===3){
+    const ps=Object.entries(PRACT).filter(([k,p])=>p.areas.includes(W.area));
+    h=`<h2>¿Qué práctica vas a hacer?</h2><p class="muted small" style="margin:0">La práctica define el turno: en el laboratorio no se pueden hacer dos prácticas distintas a la vez.</p>
+    <div class="opts">${ps.map(([k,p])=>`<button class="opt ${W.prac===k?'sel':''}" data-prac="${k}"><div class="t">${p.name}</div><div class="small muted">${p.equipo} · 1 turno (2 h)</div></button>`).join('')}</div>
+    <div class="notice info small">La reserva es individual: cada estudiante toma su propio lugar con sus datos. Si querés ir con compañeras o compañeros, cada uno reserva su lugar en el mismo turno.</div>`;
+  }
+  if(W.step===4){
+    h=`<h2>Elegí día y turno</h2><p class="muted small" style="margin:0">${PRACT[W.prac].name} · semana del 9 al 14 de noviembre</p>${activeCount()>=2?'<div class="notice warn">Ya tenés 2 turnos activos, que es el máximo por estudiante. Para reservar otro, primero cancelá uno.</div>':''}
+    <div class="gridwrap"><table class="grid"><thead><tr><th class="franja"></th>${DAYS.map(d=>`<th>${dayLabel(d)}</th>`).join('')}</tr></thead><tbody>`;
+    TURNOS.forEach((t,ti)=>{
+      h+=`<tr><th class="franja"><div class="f">${t.f}</div>${hh(t.ini)}–${hh(t.fin)}</th>`;
+      DAYS.forEach((d,di)=>{ h+=`<td>${cellHTML(di,ti)}</td>`; });
+      h+='</tr>';
+    });
+    h+=`</tbody></table></div>
+    <div class="legend"><span><i style="background:#fff"></i>Libre: tu reserva define la práctica</span><span><i style="background:var(--ok2)"></i>Misma práctica, hay lugar</span><span><i style="background:var(--brand2)"></i>Ya tenés este turno</span><span><i style="background:var(--accent2)"></i>Completo: lista de espera</span><span><i style="background:var(--grey2)"></i>Otra práctica en ese turno</span></div>
+    <div id="slotmsg"></div>`;
+  }
+  if(W.step===5){
+    const [di,ti]=W.slot.split('-').map(Number), s=SLOTS[W.slot], t=TURNOS[ti];
+    const lab=LABS.find(l=>l.id===W.lab), area=lab.areas.find(a=>a.id===W.area);
+    const isWait = W.mode==='wait';
+    h=`<div class="two"><div><h2>${isWait?'Anotarte en lista de espera':'Confirmá tu reserva'}</h2>
+      <div class="kv" style="margin-top:12px">
+        <div>Laboratorio</div><div>${lab.name}</div><div>Área</div><div>${area.name}</div>
+        <div>Práctica</div><div>${PRACT[W.prac].name}</div>
+        <div>Día y turno</div><div>${dayLabel(DAYS[di])} · ${turnoLabel(t)} (${t.f.toLowerCase()})</div>
+        <div>Estudiante</div><div>${USER.name} · DNI ${USER.dni}</div>
+        <div>Lugares</div><div>${isWait?'Turno completo':`Quedan ${CAP-s.booked} de ${CAP} → quedarán ${CAP-s.booked-1}`}</div>
+      </div>
+      ${isWait?'<div class="notice info small">Si se libera un lugar, te llega un WhatsApp unas 8 h antes del turno y tenés 5 h para confirmarlo.</div>':''}
+      </div><div>
+      <h3>Tus datos</h3><div class="kv"><div>Correo</div><div>${USER.mail}</div><div>WhatsApp</div><div>${USER.phone}</div></div>
+      <p class="small muted">Los avisos llegan solo a tu número. No se puede reservar a nombre de otra persona.</p>
+      <label class="row small" style="margin-top:12px;align-items:flex-start;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="fconsent" ${W.consent?'checked':''} style="margin-top:3px">
+      <span>Acepto recibir por WhatsApp los avisos de mis turnos de Labo Abierto UNPILAR. Mis datos se usan solo para gestionar las reservas (Ley 25.326).</span></label>
+      </div></div>`;
+  }
+  if(W.step===6){
+    const [di,ti]=W.slot.split('-').map(Number), t=TURNOS[ti], p=PRACT[W.prac];
+    const isWait = W.mode==='wait';
+    h=`<div class="notice ok" style="margin-top:0"><b>${isWait?'Te anotaste en la lista de espera.':'¡Turno reservado!'}</b> ${dayLabel(DAYS[di])} · ${turnoLabel(t)} · ${p.name}</div>
+      <div class="two" style="margin-top:16px"><div><h3>Te enviamos por correo y WhatsApp</h3>
+      <ul class="clean"><li><b>Equipo de protección:</b> ${p.epp}</li>${p.prec.map(x=>`<li>${x}</li>`).join('')}<li>Glosario de material, microvideos y guía de uso crítico de la IA</li><li>Acceso al Foro de Laboratorio</li></ul></div>
+      <div><h3>Qué sigue</h3>
+      ${isWait?'<p class="small">Si alguien cancela o no confirma, te avisamos unas 8 h antes del turno y tenés 5 h para quedarte con el lugar.</p>':
+      `<p class="small">Un día antes te llega un WhatsApp para confirmar. Si no respondés hasta ${fmt(deadlines(di,ti).hold)} o cancelás, el lugar se libera en la turnera.</p>`}
+      <div class="row"><button class="btn" id="gomine">Ver mis turnos</button><button class="btn sec" id="again">Hacer otra reserva</button></div></div></div>`;
+  }
+  if(W.step>=1 && W.step<=5){
+    const can = (W.step===1&&W.lab)||(W.step===2&&W.area)||(W.step===3&&W.prac)||(W.step===4&&W.slot)||W.step===5;
+    h+=`<div class="nav-actions"><button class="btn sec" id="back" ${W.step===1?'disabled':''}>Atrás</button>
+      <button class="btn ${W.step===5&&W.mode==='wait'?'warn':''}" id="next" ${can?'':'disabled'}>${W.step===5?(W.mode==='wait'?'Anotarme en lista de espera':'Confirmar reserva'):'Continuar'}</button></div>`;
+  }
+  el.innerHTML=h;
+  bindWizard();
+}
+function cellHTML(di,ti){
+  if(!turnoExists(di,ti)) return `<div class="cell c-none">—</div>`;
+  const k=key(di,ti), s=SLOTS[k], free=CAP-s.booked, sel=W.slot===k?' c-sel':'';
+  if(MY.some(r=>r.di===di&&r.ti===ti&&['reservado','confirmado','espera'].includes(r.status))) return `<button class="cell" style="background:var(--brand2)" disabled><div class="p">${s.prac?PRACT[s.prac].name:''}</div><div class="q">Ya tenés este turno</div></button>`;
+  if(activeCount()>=2 && free>0) return `<button class="cell c-other" disabled><div class="p">${s.prac?PRACT[s.prac].name:'Libre'}</div><div class="q">Límite de turnos</div></button>`;
+  if(!s.prac) return `<button class="cell c-free${sel}" data-slot="${k}" data-mode="book"><div class="p">Libre</div><div class="q">12 lugares</div></button>`;
+  if(s.prac!==W.prac) return `<button class="cell c-other" disabled title="Ocupado por otra práctica"><div class="p">${PRACT[s.prac].name}</div><div class="q">Otra práctica</div></button>`;
+  const bar=`<div class="bar"><div style="width:${s.booked/CAP*100}%"></div></div>`;
+  if(free===0) return `<button class="cell c-full${sel}" data-slot="${k}" data-mode="wait"><div class="p">${PRACT[s.prac].name}</div><div class="q">Completo · lista de espera (${s.wait.length})</div></button>`;
+  return `<button class="cell c-same${sel}" data-slot="${k}" data-mode="book"><div class="p">${PRACT[s.prac].name}</div><div class="q">Quedan ${free} de ${CAP}</div>${bar}</button>`;
+}
+function bindWizard(){
+  const q=s=>document.querySelectorAll(s);
+  q('[data-lab]').forEach(b=>b.onclick=()=>{W.lab=b.dataset.lab;W.area=null;W.prac=null;W.slot=null;renderWizard();});
+  q('[data-area]').forEach(b=>b.onclick=()=>{W.area=b.dataset.area;W.prac=null;W.slot=null;renderWizard();});
+  q('[data-prac]').forEach(b=>b.onclick=()=>{W.prac=b.dataset.prac;W.slot=null;renderWizard();});
+  q('[data-slot]').forEach(b=>b.onclick=()=>{
+    const mode=b.dataset.mode;
+    W.slot=b.dataset.slot; W.mode=mode; renderWizard();
+    const s=SLOTS[W.slot];
+    document.getElementById('slotmsg').innerHTML = mode==='wait'
+      ? `<div class="notice warn">Turno completo. Podés anotarte en la lista de espera (hay ${s.wait.length} antes que vos).</div>`
+      : (!s.prac ? `<div class="notice info">El turno está libre: con tu reserva queda asignado a <b>${PRACT[W.prac].name}</b> y solo se podrán sumar personas de esa práctica.</div>`
+                 : `<div class="notice ok">Te sumás al turno de ${PRACT[s.prac].name}.</div>`);
+  });
+  const back=document.getElementById('back'), next=document.getElementById('next');
+  if(back) back.onclick=()=>{W.step--;renderWizard();};
+  if(next) next.onclick=()=>{
+    if(W.step===5){
+      const c=document.getElementById('fconsent');
+      if(!c.checked){ alertBox('Para recibir los avisos de confirmación hace falta aceptar los mensajes de WhatsApp.'); return; }
+      const s=SLOTS[W.slot];
+      const [di,ti]=W.slot.split('-').map(Number);
+      if(W.mode==='wait'){ s.wait.push(USER.short); MY.push({id:Date.now(),di,ti,prac:W.prac,lab:W.lab,area:W.area,n:W.n,status:'espera'}); }
+      else { if(!s.prac){s.prac=W.prac;s.area=W.area;} s.booked+=W.n; MY.push({id:Date.now(),di,ti,prac:W.prac,lab:W.lab,area:W.area,n:W.n,status:'reservado'}); }
+      W.step=6; renderWizard(); bindDone(); return;
+    }
+    W.step++; renderWizard();
+  };
+  bindDone();
+}
+function bindDone(){
+  const g=document.getElementById('gomine'), a=document.getElementById('again');
+  if(g) g.onclick=()=>show('mis');
+  if(a) a.onclick=()=>{Object.assign(W,{step:1,lab:null,area:null,prac:null,n:1,slot:null});renderWizard();};
+}
+function alertBox(msg){
+  const el=document.createElement('div'); el.className='notice bad'; el.textContent=msg;
+  document.getElementById('wizard').appendChild(el); setTimeout(()=>el.remove(),4000);
+}
+
+/* ===================== PLAZOS ===================== */
+function startDate(di,ti){ const d=new Date(DAYS[di]); d.setHours(TURNOS[ti].ini,0,0,0); return d; }
+function addH(d,h){ return new Date(d.getTime()+h*3600000); }
+function deadlines(di,ti){
+  const start=startDate(di,ti);
+  const remind=addH(start,-24);
+  let hold=addH(start,-8);
+  if(TURNOS[ti].ini<=10){ hold=new Date(start); hold.setDate(hold.getDate()-1); hold.setHours(20,0,0,0); }
+  const wait=addH(hold,5);
+  return {start,remind,hold,wait};
+}
+function fmt(d){ return DNAMES[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1)+' '+hh(d.getHours()); }
+function tm(d){ return hh(d.getHours()); }
+
+/* ===================== MIS TURNOS ===================== */
+const STATUS = {reservado:['Reservado','p-res'],confirmado:['Confirmado','p-ok'],cancelado:['Cancelado','p-bad'],liberado:['Liberado (sin respuesta)','p-bad'],espera:['En lista de espera','p-warn']};
+function libres(n){ return n===1?'1 lugar libre':n+' lugares libres'; }
+function renderMine(){
+  const el=document.getElementById('mylist');
+  if(!MY.length){ el.innerHTML='<p class="muted">Todavía no tenés turnos.</p>'; return; }
+  el.innerHTML=MY.map(r=>{
+    const t=TURNOS[r.ti], st=STATUS[r.status], dl=deadlines(r.di,r.ti);
+    return `<div class="res"><div style="flex:1;min-width:220px"><div class="when">${dayLabel(DAYS[r.di])} · ${turnoLabel(t)}</div>
+      <div class="small muted">${PRACT[r.prac].name} · ${libres(CAP-SLOTS[key(r.di,r.ti)].booked)} en el turno</div>
+      ${r.status==='reservado'?`<div class="small muted">Recordatorio: ${fmt(dl.remind)} · Plazo para responder: ${fmt(dl.hold)}</div>`:''}</div>
+      <span class="pill ${st[1]}">${st[0]}</span>
+      ${r.status==='reservado'?`<button class="btn sec" data-sim="${r.id}">Simular avisos</button>`:''}</div>`;
+  }).join('');
+  el.querySelectorAll('[data-sim]').forEach(b=>b.onclick=()=>startSim(+b.dataset.sim));
+}
+
+/* ===================== SIMULADOR ===================== */
+let SIM=null;
+function startSim(id){
+  const r=MY.find(x=>x.id===id), s=SLOTS[key(r.di,r.ti)];
+  const waiter = s.wait.find(w=>!USER||w!==USER.short) || 'Martín G.';
+  if(!s.wait.includes(waiter)) s.wait.push(waiter);
+  SIM={r,s,dl:deadlines(r.di,r.ti),phase:0,who:(USER?USER.first:'Ana'),chat:[],log:[],waiter,ended:false};
+  addLog(`Turno de ${USER?USER.first:'Ana'}: ${fmt(SIM.dl.start)}. lista de espera: ${s.wait.join(', ')}`);
+  document.getElementById('simcard').classList.remove('hidden');
+  renderSim();
+  document.getElementById('simcard').scrollIntoView({behavior:'smooth'});
+}
+function addLog(t){ SIM.log.push(t); }
+function say(text,me,time){ SIM.chat.push({text,me,time}); }
+function sys(text){ SIM.chat.push({text,sys:true}); }
+function simAdvance(){
+  const {r,s,dl}=SIM, p=PRACT[r.prac].name, t=TURNOS[r.ti];
+  if(SIM.phase===0){
+    SIM.phase=1;
+    say(`Hola, ${USER?USER.first:'Ana'}. Mañana ${DNAMES[DAYS[r.di].getDay()]} de ${turnoLabel(t)} tenés turno en el Laboratorio de Biotecnología y Alimentos para la práctica "${p}".\n\nRespondé 1 para confirmar o 2 para cancelar.\nSi no respondés antes de ${fmt(dl.hold)}, tu lugar se libera para otra persona.`,false,tm(dl.remind));
+    addLog(`${fmt(dl.remind)} · Se envía el recordatorio (24 h antes).`);
+  } else if(SIM.phase===1){ // no responde
+    SIM.phase=2; r.status='liberado'; s.booked-=r.n;
+    sys(`${fmt(dl.hold)} · Sin respuesta: el turno se canceló automáticamente.`);
+    addLog(`${fmt(dl.hold)} · ${USER?USER.first:'Ana'} no respondió. Se libera su lugar: el turno pasa a tener ${libres(CAP-s.booked)} en la turnera.`);
+    toWaitlist();
+  } else if(SIM.phase===3){ // lista de espera no responde
+    SIM.phase=4; SIM.ended=true;
+    sys(`${fmt(dl.wait)} · Venció el plazo de 5 h.`);
+    addLog(`${fmt(dl.wait)} · ${SIM.waiter} no confirmó. El lugar queda libre en la turnera para cualquier persona hasta el inicio del turno.`);
+  }
+  renderSim();
+}
+function toWaitlist(){
+  const {r,s,dl}=SIM, p=PRACT[r.prac].name, t=TURNOS[r.ti];
+  SIM.phase=3; SIM.who=SIM.waiter; SIM.chat=[];
+  const hoy = DAYS[r.di].getDate()===dl.hold.getDate() ? 'hoy' : 'mañana';
+  say(`Hola, ${SIM.waiter.split(' ')[0]}. Se liberó un lugar ${hoy} ${DNAMES[DAYS[r.di].getDay()]} de ${turnoLabel(t)} para la práctica "${p}".\n\nRespondé 1 para quedártelo o 2 si no podés.\nTenés tiempo hasta las ${tm(dl.wait)} (5 h). Después, el lugar queda libre en la turnera.`,false,tm(dl.hold));
+  addLog(`${fmt(dl.hold)} · Aviso a la lista de espera (${SIM.waiter}), con plazo hasta ${fmt(dl.wait)}.`);
+}
+function simReply(opt){
+  const {r,s,dl}=SIM;
+  if(SIM.phase===1){
+    if(opt===1){ say('1',true,tm(addH(dl.remind,1))); say('¡Listo! Tu turno quedó confirmado. Te esperamos. Recordá llevar guardapolvo.',false,tm(addH(dl.remind,1)));
+      r.status='confirmado'; SIM.ended=true; addLog(`${fmt(addH(dl.remind,1))} · ${USER?USER.first:'Ana'} confirmó. El turno queda firme.`); }
+    else { say('2',true,tm(addH(dl.remind,2))); say('Cancelaste tu turno. Tu lugar ya está disponible para otras personas. ¡Gracias por avisar!',false,tm(addH(dl.remind,2)));
+      r.status='cancelado'; s.booked-=r.n; SIM.phase=2;
+      addLog(`${fmt(addH(dl.remind,2))} · ${USER?USER.first:'Ana'} canceló. El lugar vuelve a la turnera en ese momento (${CAP-s.booked} libres).`);
+      SIM.pendingWait=true; }
+  } else if(SIM.phase===3){
+    if(opt===1){ say('1',true,tm(addH(dl.hold,1))); say('¡Es tuyo! Quedaste confirmado en el turno. Te enviamos las normas de la práctica.',false,tm(addH(dl.hold,1)));
+      s.booked+=1; s.wait=s.wait.filter(w=>w!==SIM.waiter); SIM.ended=true;
+      addLog(`${fmt(addH(dl.hold,1))} · ${SIM.waiter} confirmó. El lugar se reasignó desde la lista de espera.`); }
+    else { say('2',true,tm(addH(dl.hold,1))); s.wait=s.wait.filter(w=>w!==SIM.waiter); SIM.phase=4; SIM.ended=true;
+      addLog(`${fmt(addH(dl.hold,1))} · ${SIM.waiter} no puede. Se ofrece a la siguiente persona de la lista o queda libre en la turnera.`); }
+  }
+  renderSim();
+}
+function renderSim(){
+  const {r,s,dl}=SIM, el=document.getElementById('simcard');
+  const ph=SIM.phase;
+  const stage = ph===0?0:(ph===1?1:(ph===2?(SIM.pendingWait?1.5:2):(ph===3?2:3)));
+  const mark=(n)=> stage>n?'past':(stage===n?'now':'');
+  let ctrl='';
+  if(SIM.ended) ctrl=`<button class="btn sec" id="simreset">Volver a mis turnos</button>`;
+  else if(ph===0) ctrl=`<button class="btn" id="simadv">Avanzar a 24 h antes</button>`;
+  else if(ph===1) ctrl=`<span class="small muted">Respondé en el celular, o:</span> <button class="btn warn" id="simadv">Dejar pasar el tiempo sin responder</button>`;
+  else if(ph===2 && SIM.pendingWait) ctrl=`<button class="btn" id="simwait">Avanzar a ${fmt(dl.hold)} (aviso a la lista de espera)</button>`;
+  else if(ph===3) ctrl=`<span class="small muted">${SIM.waiter} puede responder en el celular, o:</span> <button class="btn warn" id="simadv">Dejar pasar las 5 h sin responder</button>`;
+  const canReply = !SIM.ended && (ph===1||ph===3);
+  el.innerHTML=`<div class="row" style="justify-content:space-between"><div><h2>Simulador de confirmación</h2>
+    <div class="muted small">${dayLabel(DAYS[r.di])} · ${turnoLabel(TURNOS[r.ti])} · ${PRACT[r.prac].name}</div></div>
+    <button class="btn sec" id="simclose">Cerrar</button></div>
+    <div class="sim"><div class="phone"><div class="screen">
+      <div class="wahead"><div class="av">🧪</div><div><b>Labo Abierto UNPILAR</b><div style="font-size:11px;opacity:.8">Mensajes a ${SIM.who}</div></div></div>
+      <div class="chat" id="chat">${SIM.chat.length?SIM.chat.map(m=>m.sys?`<div class="msg sys">${m.text}</div>`:`<div class="msg ${m.me?'me':''}">${m.text}<span class="tm">${m.time}</span></div>`).join(''):'<div class="msg sys">Todavía no hay mensajes. Avanzá en el tiempo para ver el recordatorio.</div>'}</div>
+      <div class="chatbtns"><button id="r1" ${canReply?'':'disabled'}>1 · Confirmar</button><button id="r2" ${canReply?'':'disabled'}>2 · Cancelar</button></div>
+    </div></div>
+    <div>
+      <div class="tl">
+        <div class="tli ${mark(0)}"><div class="h">Reserva hecha</div></div>
+        <div class="tli ${mark(1)}"><div class="h">${fmt(dl.remind)} · 24 h antes</div><div class="small muted">Recordatorio por WhatsApp. Si cancela, el lugar vuelve a la turnera en el momento.</div></div>
+        <div class="tli ${mark(2)}"><div class="h">${fmt(dl.hold)} · ${TURNOS[r.ti].ini<=10?'20:00 del día anterior':'8 h antes'}</div><div class="small muted">Vence el plazo de quien reservó. Sin respuesta, se libera solo y se avisa a la lista de espera.</div></div>
+        <div class="tli ${mark(3)}"><div class="h">${fmt(dl.wait)} · 5 h después</div><div class="small muted">Vence el plazo de la lista de espera. Lo que no se confirmó queda libre para cualquiera.</div></div>
+        <div class="tli"><div class="h">${fmt(dl.start)} · Inicio del turno</div></div>
+      </div>
+      <div class="row">${ctrl}</div>
+      <div class="mini"><div class="box">Lugares libres en la turnera: <b>${CAP-s.booked}</b> de ${CAP}</div><div class="box">Lista de espera: <b>${s.wait.length?s.wait.join(', '):'vacía'}</b></div></div>
+      <div class="log">${SIM.log.map(l=>`<div>• ${l}</div>`).join('')}</div>
+    </div></div>`;
+  const c=document.getElementById('chat'); c.scrollTop=c.scrollHeight;
+  const on=(id,f)=>{const b=document.getElementById(id); if(b) b.onclick=f;};
+  on('simadv',simAdvance); on('r1',()=>simReply(1)); on('r2',()=>simReply(2));
+  on('simwait',()=>{SIM.pendingWait=false; toWaitlist(); renderSim();});
+  on('simclose',()=>{document.getElementById('simcard').classList.add('hidden'); renderMine();});
+  on('simreset',()=>{document.getElementById('simcard').classList.add('hidden'); renderMine(); window.scrollTo(0,0);});
+  renderMine();
+}
+
+/* ===================== NORMAS ===================== */
+document.getElementById('normcards').innerHTML = Object.values(PRACT).map(p=>`<div class="card">
+  <h3>${p.name}</h3>
+  <div>${p.areas.map(a=>`<span class="tag">${a==='biotec'?'Biotecnología':'Alimentos'}</span>`).join('')}<span class="tag" style="background:var(--accent2);color:var(--warn)">1 turno · 2 h</span></div>
+  <div class="small" style="margin-top:6px"><b>Equipamiento:</b> ${p.equipo}</div>
+  <div class="small"><b>Protección:</b> ${p.epp}</div>
+  <ul class="clean small">${p.prec.map(x=>`<li>${x}</li>`).join('')}</ul></div>`).join('') +
+  `<div class="card"><h3>Para todas las prácticas</h3><ul class="clean small"><li>No comer, beber ni maquillarse en el laboratorio</li><li>Cabello recogido y calzado cerrado</li><li>Ubicar la salida de emergencia, el lavaojos y el matafuegos</li><li>La IA sirve para repasar, pero no reemplaza el protocolo ni las indicaciones docentes</li></ul></div>`;
+
+/* ===================== FORO ===================== */
+const THREADS=[
+  {p:'titu',q:'¿Cómo me doy cuenta del punto final si el color cambia muy rápido?',a:'Agregá el titulante gota a gota cuando te acerques al volumen esperado y mirá contra un papel blanco. — Tutor par, 3.er año'},
+  {p:'sol',q:'¿Puedo usar la misma pipeta para dos soluciones distintas?',a:'Solo si la enjuagás antes con agua destilada y después con la nueva solución. — Docente'},
+  {p:'micro',q:'No logro enfocar con el objetivo de 40x.',a:'Enfocá primero con 10x y recién después cambiá de objetivo; ajustá solo con el tornillo micrométrico.'}
+];
+function renderForo(){
+  document.getElementById('threads').innerHTML=THREADS.map(t=>`<div class="thread"><span class="tag">${PRACT[t.p].name}</span><div style="font-weight:600;margin-top:4px">${t.q}</div>${t.a?`<div class="ans">${t.a}</div>`:'<div class="small muted" style="margin-top:6px">Esperando respuesta…</div>'}</div>`).join('');
+}
+document.getElementById('qprac').innerHTML=Object.entries(PRACT).map(([k,p])=>`<option value="${k}">${p.name}</option>`).join('');
+document.getElementById('qform').onsubmit=e=>{e.preventDefault(); const t=document.getElementById('qtext'); if(!t.value.trim())return;
+  THREADS.unshift({p:document.getElementById('qprac').value,q:t.value.trim(),a:null}); t.value=''; renderForo();};
+renderForo();
+
+/* ===================== QR ===================== */
+let qrDone=false;
+function renderQR(){
+  if(qrDone) return; qrDone=true;
+  const box=document.getElementById('qrbox');
+  try{ new QRCode(box,{text:location.href.split('#')[0],width:200,height:200,colorDark:'#16302b',colorLight:'#ffffff'}); }
+  catch(e){ box.innerHTML='<div class="small muted">[Código QR al sitio]</div>'; }
+}
+
+renderWizard();
+</script>
+</body>
+</html>
