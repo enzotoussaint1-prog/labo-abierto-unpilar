@@ -235,7 +235,11 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
 // La clave "publishable" está pensada para ir en el navegador: la seguridad la dan las políticas RLS y las funciones del servidor.
 const SUPABASE_URL = 'https://cdjsatazelokimilojxs.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_OeFgd6zm_lDs61SSfZV_kg_X7TfJQLw';
+const RECOVERY_LINK = /type=recovery/.test(location.hash); // el cliente limpia el hash al iniciar: se detecta antes
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const DOMINIO = 'unpilar.edu.ar'; // la regla real la aplica la base (tabla dominios_permitidos); esto es solo para avisar antes
+const esInstitucional = m => { const d=(m.split('@')[1]||'').toLowerCase(); return d===DOMINIO || d.endsWith('.'+DOMINIO); };
+const PAGE_URL = location.origin + location.pathname; // adonde vuelven los links de los correos
 
 /* ===================== UTILIDADES ===================== */
 const CAP = 12;
@@ -251,9 +255,13 @@ const key = (di,ti)=>di+'-'+ti;
 const ERR = {
   'Invalid login credentials':'Correo o contraseña incorrectos.',
   'User already registered':'Ese correo ya tiene una cuenta. Ingresá con tu contraseña.',
-  'Email not confirmed':'Todavía no confirmaste tu correo. Revisá tu bandeja de entrada.'
+  'Email not confirmed':'Todavía no confirmaste tu correo. Revisá tu bandeja de entrada.',
+  'Database error saving new user':'Ese correo no es institucional. Usá tu correo @'+DOMINIO+'.',
+  'New password should be different from the old password.':'La nueva contraseña tiene que ser distinta de la anterior.'
 };
-const errMsg = e => ERR[e && e.message] || (e && e.message) || 'Ocurrió un error. Probá de nuevo.';
+const errMsg = e => { const m=(e && e.message)||'';
+  if(/rate limit|only request this after|too many/i.test(m)) return 'Demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.';
+  return ERR[m] || m || 'Ocurrió un error. Probá de nuevo.'; };
 
 /* ===================== CATÁLOGO (desde la base) ===================== */
 let LABS = [], PRACT = {}, TURNOS = [];
@@ -353,10 +361,11 @@ function renderLogin(msg){
       ${su?`<label class="f" for="lname">Nombre y apellido</label><input type="text" id="lname" required autocomplete="name">
       <label class="f" for="ldni">DNI</label><input type="text" id="ldni" required inputmode="numeric" autocomplete="off">
       <label class="f" for="lphone">Celular (WhatsApp)</label><input type="tel" id="lphone" required autocomplete="tel">`:''}
-      <label class="f" for="lmail">Correo institucional</label><input type="email" id="lmail" required autocomplete="email">
-      <label class="f" for="lpass">Contraseña</label><input type="password" id="lpass" required minlength="6" autocomplete="${su?'new-password':'current-password'}">
+      <label class="f" for="lmail">Correo institucional</label><input type="email" id="lmail" required autocomplete="email" placeholder="nombre@${DOMINIO}">
+      <label class="f" for="lpass">Contraseña</label><input type="password" id="lpass" required minlength="${su?8:6}" autocomplete="${su?'new-password':'current-password'}">${su?'<div class="small muted">Mínimo 8 caracteres.</div>':''}
       ${su?`<label class="row small" style="margin-top:12px;align-items:flex-start;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="lconsent" style="margin-top:3px">
       <span>Acepto recibir por WhatsApp los avisos de mis turnos de Labo Abierto UNPILAR. Mis datos se usan solo para gestionar las reservas (Ley 25.326).</span></label>`:''}
+      ${su?'':'<div style="margin-top:8px"><button type="button" id="forgot" style="background:none;border:0;padding:0;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit;font-size:13px">¿Olvidaste tu contraseña?</button></div>'}
       <div id="autherr"></div>
       <button class="btn" style="margin-top:16px" type="submit">${su?'Crear cuenta':'Ingresar a la turnera'}</button>
       <button class="btn sec" style="margin-top:16px;margin-left:8px" type="button" id="toggleauth">${su?'Ya tengo cuenta':'Crear cuenta'}</button>
@@ -364,12 +373,24 @@ function renderLogin(msg){
     <div class="notice info" style="align-self:start"><b>Cómo funciona</b><br>1. Ingresás con tus datos.<br>2. Elegís laboratorio, área (carrera) y práctica.<br>3. Tomás tu lugar en un turno de 2 h.<br>4. Un día antes confirmás por WhatsApp.</div></div>`;
   const fail=m=>{ document.getElementById('autherr').innerHTML=`<div class="notice bad small">${esc(m)}</div>`; document.querySelector('#login button[type=submit]').disabled=false; };
   document.getElementById('toggleauth').onclick=()=>{ AUTHMODE=su?'login':'signup'; renderLogin(); };
+  const forgot=document.getElementById('forgot');
+  if(forgot) forgot.onclick=async()=>{
+    const email=document.getElementById('lmail').value.trim();
+    if(!email){ fail('Escribí tu correo arriba y volvé a tocar “¿Olvidaste tu contraseña?”.'); return; }
+    forgot.disabled=true;
+    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:PAGE_URL});
+    forgot.disabled=false;
+    if(error) return fail(errMsg(error));
+    document.getElementById('autherr').innerHTML='<div class="notice ok small">Si ese correo tiene cuenta, te enviamos un link para elegir una contraseña nueva. Revisá también spam.</div>';
+  };
   document.getElementById('login').onsubmit=async e=>{
     e.preventDefault();
     document.querySelector('#login button[type=submit]').disabled=true;
     const email=document.getElementById('lmail').value.trim(), password=document.getElementById('lpass').value;
     if(su){
-      const {data,error}=await sb.auth.signUp({email,password,options:{data:{
+      if(!esInstitucional(email)) return fail('Usá tu correo institucional (@'+DOMINIO+').');
+      if(password.length<8) return fail('La contraseña debe tener al menos 8 caracteres.');
+      const {data,error}=await sb.auth.signUp({email,password,options:{emailRedirectTo:PAGE_URL,data:{
         nombre:document.getElementById('lname').value.trim(), dni:document.getElementById('ldni').value.trim(),
         celular:document.getElementById('lphone').value.trim(), acepta_whatsapp:document.getElementById('lconsent').checked}}});
       if(error) return fail(errMsg(error));
@@ -378,6 +399,33 @@ function renderLogin(msg){
       const {error}=await sb.auth.signInWithPassword({email,password});
       if(error) return fail(errMsg(error));
     }
+  };
+}
+
+let RECOVERY = RECOVERY_LINK;
+function renderNewPassword(){
+  document.getElementById('steps').innerHTML='';
+  document.getElementById('wizard').innerHTML=`<div class="two"><div><h2>Elegí tu contraseña nueva</h2>
+    <form id="newpass">
+      <label class="f" for="np1">Contraseña nueva</label><input type="password" id="np1" required minlength="8" autocomplete="new-password">
+      <label class="f" for="np2">Repetila</label><input type="password" id="np2" required minlength="8" autocomplete="new-password">
+      <div class="small muted">Mínimo 8 caracteres.</div>
+      <div id="nperr"></div>
+      <button class="btn" style="margin-top:16px" type="submit">Guardar contraseña</button>
+    </form></div></div>`;
+  document.getElementById('newpass').onsubmit=async e=>{
+    e.preventDefault();
+    const fail=m=>{ document.getElementById('nperr').innerHTML=`<div class="notice bad small">${esc(m)}</div>`; };
+    const p1=document.getElementById('np1').value;
+    if(p1!==document.getElementById('np2').value) return fail('Las contraseñas no coinciden.');
+    const {error}=await sb.auth.updateUser({password:p1});
+    if(error) return fail(errMsg(error));
+    RECOVERY=false; history.replaceState(null,'',location.pathname+location.search);
+    const {data:{session}}=await sb.auth.getSession();
+    await loadUser(session); await loadMine();
+    renderWizard();
+    document.getElementById('wizard').insertAdjacentHTML('afterbegin','<div class="notice ok" id="npok">Listo, cambiaste tu contraseña.</div>');
+    setTimeout(()=>{const n=document.getElementById('npok'); if(n) n.remove();},6000);
   };
 }
 
@@ -721,10 +769,12 @@ async function boot(){
   buildDays(W.week);
   sb.auth.onAuthStateChange((ev,session)=>{
     if(ev==='TOKEN_REFRESHED') return;
+    if(ev==='PASSWORD_RECOVERY'){ RECOVERY=true; setTimeout(renderNewPassword,0); return; }
     setTimeout(async()=>{
       const uid=session?session.user.id:null;
       if(ev!=='SIGNED_OUT' && USER && USER.id===uid) return; // evita reiniciar el asistente al volver a la pestaña
       await loadUser(session); await loadMine();
+      if(RECOVERY && session){ renderNewPassword(); return; }
       slotsFor=null; Object.assign(W,{step:1,lab:null,area:null,prac:null,slot:null,result:null});
       renderWizard(); show(CUR);
     },0);
