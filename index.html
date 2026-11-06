@@ -127,7 +127,7 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
     <img src="assets/logo-unpilar.png" alt="Universidad Nacional de Pilar" class="logo-img">
     <div>
       <h1>Labo Abierto UNPILAR</h1>
-      <div class="sub">Prototipo navegable · datos de ejemplo</div>
+      <div class="sub">Turnera de laboratorios</div>
     </div>
     <div class="user" id="userpill">Sin ingresar</div>
   </div>
@@ -152,7 +152,7 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
   <section id="v-mis" class="hidden">
     <div class="card">
       <h2>Mis turnos</h2>
-      <p class="muted small" style="margin:0">Elegí un turno y tocá “Simular avisos” para ver cómo funciona la confirmación por WhatsApp y la lista de espera.</p>
+      <p class="muted small" style="margin:0">Acá ves, confirmás y cancelás tus reservas. Los avisos por WhatsApp todavía no están conectados: “Simular avisos” muestra cómo van a funcionar.</p>
       <div class="list" id="mylist" style="margin-top:14px"></div>
     </div>
     <div class="card hidden" id="simcard" style="margin-top:18px"></div>
@@ -229,118 +229,191 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
-/* ===================== DATOS DE EJEMPLO ===================== */
+/* ===================== SUPABASE ===================== */
+// La clave "publishable" está pensada para ir en el navegador: la seguridad la dan las políticas RLS y las funciones del servidor.
+const SUPABASE_URL = 'https://cdjsatazelokimilojxs.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_OeFgd6zm_lDs61SSfZV_kg_X7TfJQLw';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ===================== UTILIDADES ===================== */
 const CAP = 12;
-const LABS = [
-  {id:'bio', name:'Laboratorio de Biotecnología y Alimentos', desc:'Prácticas de química y biología', active:true,
-   areas:[{id:'biotec',name:'Biotecnología'},{id:'alim',name:'Alimentos'}]},
-  {id:'sis', name:'Laboratorio de Sistemas y Tecnologías Aplicadas', desc:'No incluido en este prototipo', active:false, areas:[]},
-  {id:'exp', name:'Exploratorio de Narrativas y Tecnologías', desc:'No incluido en este prototipo', active:false, areas:[]}
-];
-const PRACT = {
-  sol:{name:'Preparación de soluciones', areas:['biotec','alim'], equipo:'Balanza, material de vidrio',
-       epp:'Guardapolvo, antiparras y guantes', prec:['Agregar siempre el ácido sobre el agua, nunca al revés','Rotular cada recipiente','Limpiar la balanza después de usarla']},
-  micro:{name:'Uso de microscopio', areas:['biotec','alim'], equipo:'Microscopios ópticos',
-       epp:'Guardapolvo', prec:['Trasladar el microscopio con las dos manos','Usar papel especial para limpiar lentes','Bajar la platina antes de cambiar de objetivo']},
-  titu:{name:'Titulación ácido-base', areas:['biotec','alim'], equipo:'Buretas, pipetas',
-       epp:'Guardapolvo, antiparras y guantes', prec:['No pipetear con la boca: usar propipeta','Descartar residuos líquidos en el bidón indicado','Enjuagar la bureta antes de cargarla']},
-  cult:{name:'Cultivo y tinción', areas:['biotec'], equipo:'Mechero, material biológico',
-       epp:'Guardapolvo, guantes y cabello recogido', prec:['Desinfectar la mesada antes y después','Trabajar cerca del mechero','Descartar el material en el recipiente de residuos biológicos']}
-};
-const TURNOS = [
-  {id:0,f:'Mañana',ini:8,fin:10},{id:1,f:'Mañana',ini:10,fin:12},
-  {id:2,f:'Tarde',ini:13,fin:15},{id:3,f:'Tarde',ini:15,fin:17},
-  {id:4,f:'Noche',ini:18,fin:20},{id:5,f:'Noche',ini:20,fin:22}
-];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const DNAMES = ['dom','lun','mar','mié','jue','vie','sáb'];
-const DAYS = [];
-for(let i=0;i<6;i++){ DAYS.push(new Date(2026,10,9+i)); } // lun 9/11 a sáb 14/11
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const parseISO = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
 const dayLabel = d => DNAMES[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
-const turnoExists = (di,ti) => !(DAYS[di].getDay()===6 && ti>=4);
 const hh = h => (h<10?'0':'')+h+':00';
 const turnoLabel = t => hh(t.ini)+' a '+hh(t.fin);
-
-// estado de los turnos: practica asignada, lugares ocupados, lista de espera
-const SLOTS = {};
 const key = (di,ti)=>di+'-'+ti;
-DAYS.forEach((d,di)=>TURNOS.forEach((t,ti)=>{ if(turnoExists(di,ti)) SLOTS[key(di,ti)]={prac:null,booked:0,area:null,wait:[]}; }));
-function seed(di,ti,prac,booked,wait){ Object.assign(SLOTS[key(di,ti)],{prac,booked,wait:wait||[]}); }
-seed(0,0,'sol',12,['Lucía P.']); seed(0,1,'titu',9); seed(0,3,'micro',4); seed(0,4,'sol',7);
-seed(1,0,'titu',12,['Martín G.','Sofía R.']); seed(1,2,'cult',11); seed(1,3,'sol',3); seed(1,5,'micro',10);
-seed(2,0,'micro',6); seed(2,1,'sol',12); seed(2,2,'titu',8); seed(2,3,'titu',12,['Martín G.']); seed(2,4,'sol',2);
-seed(3,1,'cult',5); seed(3,2,'sol',10); seed(3,3,'titu',12,['Julián T.']); seed(3,4,'titu',6);
-seed(4,0,'sol',8); seed(4,2,'micro',12); seed(4,3,'titu',4);
-seed(5,0,'titu',10); seed(5,1,'sol',5); seed(5,2,'cult',12);
+const ERR = {
+  'Invalid login credentials':'Correo o contraseña incorrectos.',
+  'User already registered':'Ese correo ya tiene una cuenta. Ingresá con tu contraseña.',
+  'Email not confirmed':'Todavía no confirmaste tu correo. Revisá tu bandeja de entrada.'
+};
+const errMsg = e => ERR[e && e.message] || (e && e.message) || 'Ocurrió un error. Probá de nuevo.';
 
-// turno ya reservado por Ana (para el simulador)
-const MY = [
-  {id:1, di:2, ti:3, prac:'titu', lab:'bio', area:'biotec', n:1, status:'reservado'}
-];
+/* ===================== CATÁLOGO (desde la base) ===================== */
+let LABS = [], PRACT = {}, TURNOS = [];
+async function loadCatalog(){
+  const [l,a,p,pa,t] = await Promise.all([
+    sb.from('labs').select('*'), sb.from('areas').select('*').order('nombre'),
+    sb.from('practicas').select('*').order('nombre'), sb.from('practica_areas').select('*'),
+    sb.from('turnos').select('*').order('id')]);
+  const bad = [l,a,p,pa,t].find(x=>x.error); if(bad) throw bad.error;
+  LABS = l.data.sort((x,y)=>(y.activo-x.activo)||x.nombre.localeCompare(y.nombre)).map(x=>({
+    id:x.id, name:x.nombre, desc:x.descripcion||'', active:x.activo,
+    areas:a.data.filter(y=>y.lab_id===x.id).map(y=>({id:y.id,name:y.nombre}))}));
+  PRACT = {};
+  p.data.forEach(x=>PRACT[x.id]={name:x.nombre, equipo:x.equipo||'', epp:x.epp||'', prec:x.precauciones||[],
+    areas:pa.data.filter(y=>y.practica_id===x.id).map(y=>y.area_id)});
+  TURNOS = t.data.map(x=>({id:x.id,f:x.franja,ini:x.hora_ini,fin:x.hora_fin}));
+}
+const areaName = id => { for(const l of LABS){ const a=l.areas.find(x=>x.id===id); if(a) return a.name; } return id; };
+
+/* ===================== SEMANA Y CUPOS ===================== */
+let DAYS = [], SLOTS = {}, slotsFor = null;
+const turnoExists = (di,ti) => !(DAYS[di].getDay()===6 && TURNOS[ti].id>=4);
+function buildDays(week){
+  const m=new Date(); m.setHours(0,0,0,0); m.setDate(m.getDate()-((m.getDay()+6)%7)+7*week);
+  DAYS=[]; for(let i=0;i<6;i++){ const d=new Date(m); d.setDate(m.getDate()+i); DAYS.push(d); }
+}
+async function loadSlots(){
+  SLOTS={};
+  DAYS.forEach((d,di)=>TURNOS.forEach((t,ti)=>{ if(turnoExists(di,ti)) SLOTS[key(di,ti)]={prac:null,booked:0,wait:0}; }));
+  const {data,error}=await sb.rpc('cupos_rango',{p_desde:iso(DAYS[0]),p_hasta:iso(DAYS[5])});
+  if(error) throw error;
+  data.forEach(c=>{
+    const di=DAYS.findIndex(d=>iso(d)===c.fecha), ti=TURNOS.findIndex(t=>t.id===c.turno_id);
+    const s=SLOTS[key(di,ti)]; if(s){ s.prac=c.practica_id; s.booked=c.ocupados; s.wait=c.en_espera; }
+  });
+  slotsFor=W.week;
+}
 
 /* ===================== NAVEGACIÓN ===================== */
+let CUR='reservar';
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>show(b.dataset.v));
 function show(v){
+  CUR=v;
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   ['reservar','mis','normas','reglas','foro','qr'].forEach(x=>document.getElementById('v-'+x).classList.toggle('hidden',x!==v));
-  if(v==='mis') renderMine();
+  if(v==='mis'){ renderMine(); loadMine().then(renderMine); }
+  if(v==='foro') renderForo();
   if(v==='qr') renderQR();
   window.scrollTo(0,0);
 }
 
-/* ===================== RESERVA (asistente) ===================== */
-const W = {step:1, lab:null, area:null, prac:null, n:1, slot:null, phone:'11 5555-1234', consent:true};
+/* ===================== SESIÓN ===================== */
+let USER=null, MY=[], AUTHMODE='login';
+const W = {step:1, lab:null, area:null, prac:null, n:1, slot:null, week:0, mode:null, result:null};
 const STEPS = ['Laboratorio','Área','Práctica','Fecha y horario','Confirmación'];
+
+async function loadUser(session){
+  if(!session){ USER=null; MY=[]; updatePill(); return; }
+  const {data}=await sb.from('perfiles').select('*').eq('id',session.user.id).maybeSingle();
+  const p=data||{}, name=(p.nombre||'').trim()||session.user.email, parts=name.split(' ');
+  USER={id:session.user.id, name, dni:p.dni||'', mail:session.user.email, phone:p.celular||'', consent:!!p.acepta_whatsapp,
+        first:parts[0], short:parts[0]+(parts[1]?' '+parts[1].charAt(0)+'.':'')};
+  updatePill();
+}
+function updatePill(){
+  const el=document.getElementById('userpill');
+  if(!USER){ el.textContent='Sin ingresar'; return; }
+  el.innerHTML=esc(USER.name)+(USER.dni?' · DNI '+esc(USER.dni):'')+
+    ' <button id="logout" style="margin-left:8px;background:rgba(255,255,255,.2);border:0;color:inherit;border-radius:8px;padding:2px 8px;cursor:pointer;font:inherit;font-size:12px">Salir</button>';
+  document.getElementById('logout').onclick=()=>sb.auth.signOut();
+}
+async function loadMine(){
+  if(!USER){ MY=[]; return; }
+  const {data,error}=await sb.from('reservas').select('id,fecha,turno_id,practica_id,area_id,estado')
+    .order('fecha',{ascending:true}).order('turno_id',{ascending:true});
+  if(error){ console.error(error); return; }
+  MY=data.map(r=>({id:r.id, fecha:r.fecha, date:parseISO(r.fecha), ti:TURNOS.findIndex(t=>t.id===r.turno_id),
+    prac:r.practica_id, area:r.area_id, lab:(LABS.find(l=>l.areas.some(a=>a.id===r.area_id))||{}).id, n:1, status:r.estado, ocupados:0}));
+  if(MY.length){
+    const {data:c}=await sb.rpc('cupos_rango',{p_desde:MY[0].fecha,p_hasta:MY[MY.length-1].fecha});
+    MY.forEach(r=>{ const x=(c||[]).find(z=>z.fecha===r.fecha&&z.turno_id===TURNOS[r.ti].id); r.ocupados=x?x.ocupados:0; });
+  }
+}
+function activeCount(){ const now=new Date(); return MY.filter(r=>['reservado','confirmado'].includes(r.status)&&startDate(r.date,r.ti)>now).length; }
+
 function renderSteps(){
   document.getElementById('steps').innerHTML = STEPS.map((s,i)=>
     `<div class="step ${i+1===W.step?'on':(i+1<W.step?'done':'')}"><b>${i+1<W.step?'✓':i+1}</b>${s}</div>`).join('');
 }
-let USER=null;
-function activeCount(){ return MY.filter(r=>['reservado','confirmado'].includes(r.status)).length; }
-function renderLogin(){
+function renderLogin(msg){
+  const su=AUTHMODE==='signup';
   document.getElementById('steps').innerHTML='';
-  document.getElementById('wizard').innerHTML=`<div class="two"><div><h2>Ingresá con tus datos</h2>
+  document.getElementById('wizard').innerHTML=`<div class="two"><div><h2>${su?'Creá tu cuenta':'Ingresá con tu cuenta'}</h2>
     <p class="muted small">La turnera es individual: cada estudiante entra con sus propios datos y toma su turno. Los avisos de confirmación llegan a tu WhatsApp.</p>
+    ${msg?`<div class="notice ok small">${esc(msg)}</div>`:''}
     <form id="login">
-      <label class="f" for="lname">Nombre y apellido</label><input type="text" id="lname" value="Ana López" required>
-      <label class="f" for="ldni">DNI</label><input type="text" id="ldni" value="40.123.456" required>
-      <label class="f" for="lmail">Correo institucional</label><input type="text" id="lmail" value="ana.lopez@unpilar.edu.ar" required>
-      <label class="f" for="lphone">Celular (WhatsApp)</label><input type="tel" id="lphone" value="11 5555-1234" required>
-      <button class="btn" style="margin-top:16px" type="submit">Ingresar a la turnera</button>
+      ${su?`<label class="f" for="lname">Nombre y apellido</label><input type="text" id="lname" required autocomplete="name">
+      <label class="f" for="ldni">DNI</label><input type="text" id="ldni" required inputmode="numeric" autocomplete="off">
+      <label class="f" for="lphone">Celular (WhatsApp)</label><input type="tel" id="lphone" required autocomplete="tel">`:''}
+      <label class="f" for="lmail">Correo institucional</label><input type="email" id="lmail" required autocomplete="email">
+      <label class="f" for="lpass">Contraseña</label><input type="password" id="lpass" required minlength="6" autocomplete="${su?'new-password':'current-password'}">
+      ${su?`<label class="row small" style="margin-top:12px;align-items:flex-start;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="lconsent" style="margin-top:3px">
+      <span>Acepto recibir por WhatsApp los avisos de mis turnos de Labo Abierto UNPILAR. Mis datos se usan solo para gestionar las reservas (Ley 25.326).</span></label>`:''}
+      <div id="autherr"></div>
+      <button class="btn" style="margin-top:16px" type="submit">${su?'Crear cuenta':'Ingresar a la turnera'}</button>
+      <button class="btn sec" style="margin-top:16px;margin-left:8px" type="button" id="toggleauth">${su?'Ya tengo cuenta':'Crear cuenta'}</button>
     </form></div>
-    <div class="notice info" style="align-self:start"><b>Cómo funciona</b><br>1. Ingresás con tus datos.<br>2. Elegís laboratorio, área (carrera) y práctica.<br>3. Tomás tu lugar en un turno de 2 h.<br>4. Un día antes confirmás por WhatsApp.<br><br><span class="small">Datos de ejemplo: podés ingresar con los que ya están cargados.</span></div></div>`;
-  document.getElementById('login').onsubmit=e=>{e.preventDefault();
-    const name=document.getElementById('lname').value.trim()||'Ana López';
-    USER={name,dni:document.getElementById('ldni').value,mail:document.getElementById('lmail').value,phone:document.getElementById('lphone').value,
-          first:name.split(' ')[0], short:name.split(' ')[0]+' '+(name.split(' ')[1]||'').charAt(0)+'.'};
-    document.getElementById('userpill').textContent=name+' · DNI '+USER.dni;
-    renderWizard();};
+    <div class="notice info" style="align-self:start"><b>Cómo funciona</b><br>1. Ingresás con tus datos.<br>2. Elegís laboratorio, área (carrera) y práctica.<br>3. Tomás tu lugar en un turno de 2 h.<br>4. Un día antes confirmás por WhatsApp.</div></div>`;
+  const fail=m=>{ document.getElementById('autherr').innerHTML=`<div class="notice bad small">${esc(m)}</div>`; document.querySelector('#login button[type=submit]').disabled=false; };
+  document.getElementById('toggleauth').onclick=()=>{ AUTHMODE=su?'login':'signup'; renderLogin(); };
+  document.getElementById('login').onsubmit=async e=>{
+    e.preventDefault();
+    document.querySelector('#login button[type=submit]').disabled=true;
+    const email=document.getElementById('lmail').value.trim(), password=document.getElementById('lpass').value;
+    if(su){
+      const {data,error}=await sb.auth.signUp({email,password,options:{data:{
+        nombre:document.getElementById('lname').value.trim(), dni:document.getElementById('ldni').value.trim(),
+        celular:document.getElementById('lphone').value.trim(), acepta_whatsapp:document.getElementById('lconsent').checked}}});
+      if(error) return fail(errMsg(error));
+      if(!data.session){ AUTHMODE='login'; renderLogin('Te enviamos un correo para confirmar tu cuenta. Confirmala y después ingresá.'); }
+    } else {
+      const {error}=await sb.auth.signInWithPassword({email,password});
+      if(error) return fail(errMsg(error));
+    }
+  };
 }
+
+/* ===================== RESERVA (asistente) ===================== */
 function renderWizard(){
   if(!USER){ renderLogin(); return; }
   renderSteps();
   const el = document.getElementById('wizard');
+  if(W.step===4 && slotsFor!==W.week){
+    el.innerHTML='<p class="muted">Cargando turnos…</p>';
+    loadSlots().then(renderWizard).catch(e=>{ el.innerHTML=`<div class="notice bad">No se pudieron cargar los turnos: ${esc(e.message)}</div>`; });
+    return;
+  }
   let h='';
   if(W.step===1){
     h=`<h2>Elegí el laboratorio</h2><p class="muted small" style="margin:0">Igual que en Espacios y recursos de unpilarapp.</p>
-    <div class="opts">${LABS.map(l=>`<button class="opt ${W.lab===l.id?'sel':''}" ${l.active?'':'disabled'} data-lab="${l.id}"><div class="t">${l.name}</div><div class="small muted">${l.desc}</div></button>`).join('')}</div>`;
+    <div class="opts">${LABS.map(l=>`<button class="opt ${W.lab===l.id?'sel':''}" ${l.active?'':'disabled'} data-lab="${l.id}"><div class="t">${esc(l.name)}</div><div class="small muted">${l.active?esc(l.desc):'Próximamente'}</div></button>`).join('')}</div>`;
   }
   if(W.step===2){
     const lab=LABS.find(l=>l.id===W.lab);
-    h=`<h2>Elegí tu área (carrera)</h2><p class="muted small" style="margin:0">${lab.name}</p>
-    <div class="opts">${lab.areas.map(a=>`<button class="opt ${W.area===a.id?'sel':''}" data-area="${a.id}"><div class="t">${a.name}</div><div class="small muted">${Object.values(PRACT).filter(p=>p.areas.includes(a.id)).length} prácticas disponibles</div></button>`).join('')}</div>`;
+    h=`<h2>Elegí tu área (carrera)</h2><p class="muted small" style="margin:0">${esc(lab.name)}</p>
+    <div class="opts">${lab.areas.map(a=>`<button class="opt ${W.area===a.id?'sel':''}" data-area="${a.id}"><div class="t">${esc(a.name)}</div><div class="small muted">${Object.values(PRACT).filter(p=>p.areas.includes(a.id)).length} prácticas disponibles</div></button>`).join('')}</div>`;
   }
   if(W.step===3){
     const ps=Object.entries(PRACT).filter(([k,p])=>p.areas.includes(W.area));
     h=`<h2>¿Qué práctica vas a hacer?</h2><p class="muted small" style="margin:0">La práctica define el turno: en el laboratorio no se pueden hacer dos prácticas distintas a la vez.</p>
-    <div class="opts">${ps.map(([k,p])=>`<button class="opt ${W.prac===k?'sel':''}" data-prac="${k}"><div class="t">${p.name}</div><div class="small muted">${p.equipo} · 1 turno (2 h)</div></button>`).join('')}</div>
+    <div class="opts">${ps.map(([k,p])=>`<button class="opt ${W.prac===k?'sel':''}" data-prac="${k}"><div class="t">${esc(p.name)}</div><div class="small muted">${esc(p.equipo)} · 1 turno (2 h)</div></button>`).join('')}</div>
     <div class="notice info small">La reserva es individual: cada estudiante toma su propio lugar con sus datos. Si querés ir con compañeras o compañeros, cada uno reserva su lugar en el mismo turno.</div>`;
   }
   if(W.step===4){
-    h=`<h2>Elegí día y turno</h2><p class="muted small" style="margin:0">${PRACT[W.prac].name} · semana del 9 al 14 de noviembre</p>${activeCount()>=2?'<div class="notice warn">Ya tenés 2 turnos activos, que es el máximo por estudiante. Para reservar otro, primero cancelá uno.</div>':''}
+    h=`<h2>Elegí día y turno</h2><p class="muted small" style="margin:0">${esc(PRACT[W.prac].name)} · semana del ${DAYS[0].getDate()} al ${DAYS[5].getDate()} de ${MESES[DAYS[5].getMonth()]}</p>
+    <div class="row" style="margin:10px 0"><button class="btn sec" id="wprev" ${W.week===0?'disabled':''}>← Semana anterior</button><button class="btn sec" id="wnext" ${W.week>=3?'disabled':''}>Semana siguiente →</button></div>
+    ${activeCount()>=2?'<div class="notice warn">Ya tenés 2 turnos activos, que es el máximo por estudiante. Para reservar otro, primero cancelá uno.</div>':''}
     <div class="gridwrap"><table class="grid"><thead><tr><th class="franja"></th>${DAYS.map(d=>`<th>${dayLabel(d)}</th>`).join('')}</tr></thead><tbody>`;
     TURNOS.forEach((t,ti)=>{
-      h+=`<tr><th class="franja"><div class="f">${t.f}</div>${hh(t.ini)}–${hh(t.fin)}</th>`;
+      h+=`<tr><th class="franja"><div class="f">${esc(t.f)}</div>${hh(t.ini)}–${hh(t.fin)}</th>`;
       DAYS.forEach((d,di)=>{ h+=`<td>${cellHTML(di,ti)}</td>`; });
       h+='</tr>';
     });
@@ -350,33 +423,34 @@ function renderWizard(){
   }
   if(W.step===5){
     const [di,ti]=W.slot.split('-').map(Number), s=SLOTS[W.slot], t=TURNOS[ti];
-    const lab=LABS.find(l=>l.id===W.lab), area=lab.areas.find(a=>a.id===W.area);
+    const lab=LABS.find(l=>l.id===W.lab);
     const isWait = W.mode==='wait';
     h=`<div class="two"><div><h2>${isWait?'Anotarte en lista de espera':'Confirmá tu reserva'}</h2>
       <div class="kv" style="margin-top:12px">
-        <div>Laboratorio</div><div>${lab.name}</div><div>Área</div><div>${area.name}</div>
-        <div>Práctica</div><div>${PRACT[W.prac].name}</div>
-        <div>Día y turno</div><div>${dayLabel(DAYS[di])} · ${turnoLabel(t)} (${t.f.toLowerCase()})</div>
-        <div>Estudiante</div><div>${USER.name} · DNI ${USER.dni}</div>
+        <div>Laboratorio</div><div>${esc(lab.name)}</div><div>Área</div><div>${esc(areaName(W.area))}</div>
+        <div>Práctica</div><div>${esc(PRACT[W.prac].name)}</div>
+        <div>Día y turno</div><div>${dayLabel(DAYS[di])} · ${turnoLabel(t)} (${esc(t.f.toLowerCase())})</div>
+        <div>Estudiante</div><div>${esc(USER.name)} · DNI ${esc(USER.dni)}</div>
         <div>Lugares</div><div>${isWait?'Turno completo':`Quedan ${CAP-s.booked} de ${CAP} → quedarán ${CAP-s.booked-1}`}</div>
       </div>
       ${isWait?'<div class="notice info small">Si se libera un lugar, te llega un WhatsApp unas 8 h antes del turno y tenés 5 h para confirmarlo.</div>':''}
       </div><div>
-      <h3>Tus datos</h3><div class="kv"><div>Correo</div><div>${USER.mail}</div><div>WhatsApp</div><div>${USER.phone}</div></div>
+      <h3>Tus datos</h3><div class="kv"><div>Correo</div><div>${esc(USER.mail)}</div><div>WhatsApp</div><div>${esc(USER.phone)}</div></div>
       <p class="small muted">Los avisos llegan solo a tu número. No se puede reservar a nombre de otra persona.</p>
-      <label class="row small" style="margin-top:12px;align-items:flex-start;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="fconsent" ${W.consent?'checked':''} style="margin-top:3px">
+      <label class="row small" style="margin-top:12px;align-items:flex-start;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="fconsent" ${USER.consent?'checked':''} style="margin-top:3px">
       <span>Acepto recibir por WhatsApp los avisos de mis turnos de Labo Abierto UNPILAR. Mis datos se usan solo para gestionar las reservas (Ley 25.326).</span></label>
       </div></div>`;
   }
   if(W.step===6){
     const [di,ti]=W.slot.split('-').map(Number), t=TURNOS[ti], p=PRACT[W.prac];
-    const isWait = W.mode==='wait';
-    h=`<div class="notice ok" style="margin-top:0"><b>${isWait?'Te anotaste en la lista de espera.':'¡Turno reservado!'}</b> ${dayLabel(DAYS[di])} · ${turnoLabel(t)} · ${p.name}</div>
-      <div class="two" style="margin-top:16px"><div><h3>Te enviamos por correo y WhatsApp</h3>
-      <ul class="clean"><li><b>Equipo de protección:</b> ${p.epp}</li>${p.prec.map(x=>`<li>${x}</li>`).join('')}<li>Glosario de material, microvideos y guía de uso crítico de la IA</li><li>Acceso al Foro de Laboratorio</li></ul></div>
+    const isWait = W.result==='espera', isConf = W.result==='confirmado';
+    h=`<div class="notice ok" style="margin-top:0"><b>${isWait?'Te anotaste en la lista de espera.':(isConf?'¡Turno reservado y confirmado!':'¡Turno reservado!')}</b> ${dayLabel(DAYS[di])} · ${turnoLabel(t)} · ${esc(p.name)}</div>
+      <div class="two" style="margin-top:16px"><div><h3>Tené en cuenta para ese día</h3>
+      <ul class="clean"><li><b>Equipo de protección:</b> ${esc(p.epp)}</li>${p.prec.map(x=>`<li>${esc(x)}</li>`).join('')}<li>Acceso al Foro de Laboratorio</li></ul></div>
       <div><h3>Qué sigue</h3>
       ${isWait?'<p class="small">Si alguien cancela o no confirma, te avisamos unas 8 h antes del turno y tenés 5 h para quedarte con el lugar.</p>':
-      `<p class="small">Un día antes te llega un WhatsApp para confirmar. Si no respondés hasta ${fmt(deadlines(di,ti).hold)} o cancelás, el lugar se libera en la turnera.</p>`}
+        (isConf?'<p class="small">Como faltan menos de 24 h para el turno, quedó confirmado al reservar.</p>':
+        `<p class="small">Un día antes te llega un WhatsApp para confirmar. Si no respondés hasta ${fmt(deadlines(DAYS[di],ti).hold)} o cancelás, el lugar se libera en la turnera.</p>`)}
       <div class="row"><button class="btn" id="gomine">Ver mis turnos</button><button class="btn sec" id="again">Hacer otra reserva</button></div></div></div>`;
   }
   if(W.step>=1 && W.step<=5){
@@ -389,14 +463,15 @@ function renderWizard(){
 }
 function cellHTML(di,ti){
   if(!turnoExists(di,ti)) return `<div class="cell c-none">—</div>`;
-  const k=key(di,ti), s=SLOTS[k], free=CAP-s.booked, sel=W.slot===k?' c-sel':'';
-  if(MY.some(r=>r.di===di&&r.ti===ti&&['reservado','confirmado','espera'].includes(r.status))) return `<button class="cell" style="background:var(--brand2)" disabled><div class="p">${s.prac?PRACT[s.prac].name:''}</div><div class="q">Ya tenés este turno</div></button>`;
-  if(activeCount()>=2 && free>0) return `<button class="cell c-other" disabled><div class="p">${s.prac?PRACT[s.prac].name:'Libre'}</div><div class="q">Límite de turnos</div></button>`;
+  const k=key(di,ti), s=SLOTS[k], free=CAP-s.booked, sel=W.slot===k?' c-sel':'', dk=iso(DAYS[di]);
+  if(startDate(DAYS[di],ti)<=new Date()) return `<div class="cell c-none">—</div>`;
+  if(MY.some(r=>r.fecha===dk&&r.ti===ti&&['reservado','confirmado','espera'].includes(r.status))) return `<button class="cell" style="background:var(--brand2)" disabled><div class="p">${s.prac?esc(PRACT[s.prac].name):''}</div><div class="q">Ya tenés este turno</div></button>`;
+  if(activeCount()>=2 && free>0) return `<button class="cell c-other" disabled><div class="p">${s.prac?esc(PRACT[s.prac].name):'Libre'}</div><div class="q">Límite de turnos</div></button>`;
   if(!s.prac) return `<button class="cell c-free${sel}" data-slot="${k}" data-mode="book"><div class="p">Libre</div><div class="q">12 lugares</div></button>`;
-  if(s.prac!==W.prac) return `<button class="cell c-other" disabled title="Ocupado por otra práctica"><div class="p">${PRACT[s.prac].name}</div><div class="q">Otra práctica</div></button>`;
+  if(s.prac!==W.prac) return `<button class="cell c-other" disabled title="Ocupado por otra práctica"><div class="p">${esc(PRACT[s.prac].name)}</div><div class="q">Otra práctica</div></button>`;
   const bar=`<div class="bar"><div style="width:${s.booked/CAP*100}%"></div></div>`;
-  if(free===0) return `<button class="cell c-full${sel}" data-slot="${k}" data-mode="wait"><div class="p">${PRACT[s.prac].name}</div><div class="q">Completo · lista de espera (${s.wait.length})</div></button>`;
-  return `<button class="cell c-same${sel}" data-slot="${k}" data-mode="book"><div class="p">${PRACT[s.prac].name}</div><div class="q">Quedan ${free} de ${CAP}</div>${bar}</button>`;
+  if(free<=0) return `<button class="cell c-full${sel}" data-slot="${k}" data-mode="wait"><div class="p">${esc(PRACT[s.prac].name)}</div><div class="q">Completo · lista de espera (${s.wait})</div></button>`;
+  return `<button class="cell c-same${sel}" data-slot="${k}" data-mode="book"><div class="p">${esc(PRACT[s.prac].name)}</div><div class="q">Quedan ${free} de ${CAP}</div>${bar}</button>`;
 }
 function bindWizard(){
   const q=s=>document.querySelectorAll(s);
@@ -408,21 +483,28 @@ function bindWizard(){
     W.slot=b.dataset.slot; W.mode=mode; renderWizard();
     const s=SLOTS[W.slot];
     document.getElementById('slotmsg').innerHTML = mode==='wait'
-      ? `<div class="notice warn">Turno completo. Podés anotarte en la lista de espera (hay ${s.wait.length} antes que vos).</div>`
-      : (!s.prac ? `<div class="notice info">El turno está libre: con tu reserva queda asignado a <b>${PRACT[W.prac].name}</b> y solo se podrán sumar personas de esa práctica.</div>`
-                 : `<div class="notice ok">Te sumás al turno de ${PRACT[s.prac].name}.</div>`);
+      ? `<div class="notice warn">Turno completo. Podés anotarte en la lista de espera (hay ${s.wait} antes que vos).</div>`
+      : (!s.prac ? `<div class="notice info">El turno está libre: con tu reserva queda asignado a <b>${esc(PRACT[W.prac].name)}</b> y solo se podrán sumar personas de esa práctica.</div>`
+                 : `<div class="notice ok">Te sumás al turno de ${esc(PRACT[s.prac].name)}.</div>`);
   });
+  const wp=document.getElementById('wprev'), wn=document.getElementById('wnext');
+  const goWeek=d=>{ W.week+=d; W.slot=null; buildDays(W.week); slotsFor=null; renderWizard(); };
+  if(wp) wp.onclick=()=>goWeek(-1);
+  if(wn) wn.onclick=()=>goWeek(1);
   const back=document.getElementById('back'), next=document.getElementById('next');
   if(back) back.onclick=()=>{W.step--;renderWizard();};
-  if(next) next.onclick=()=>{
+  if(next) next.onclick=async()=>{
     if(W.step===5){
       const c=document.getElementById('fconsent');
       if(!c.checked){ alertBox('Para recibir los avisos de confirmación hace falta aceptar los mensajes de WhatsApp.'); return; }
-      const s=SLOTS[W.slot];
+      const label=next.textContent; next.disabled=true; next.textContent='Reservando…';
       const [di,ti]=W.slot.split('-').map(Number);
-      if(W.mode==='wait'){ s.wait.push(USER.short); MY.push({id:Date.now(),di,ti,prac:W.prac,lab:W.lab,area:W.area,n:W.n,status:'espera'}); }
-      else { if(!s.prac){s.prac=W.prac;s.area=W.area;} s.booked+=W.n; MY.push({id:Date.now(),di,ti,prac:W.prac,lab:W.lab,area:W.area,n:W.n,status:'reservado'}); }
-      W.step=6; renderWizard(); bindDone(); return;
+      const {data,error}=await sb.rpc('reservar_turno',{p_fecha:iso(DAYS[di]),p_turno:TURNOS[ti].id,p_practica:W.prac,p_area:W.area});
+      if(error){ slotsFor=null; next.disabled=false; next.textContent=label; alertBox(errMsg(error)); return; }
+      if(!USER.consent){ await sb.from('perfiles').update({acepta_whatsapp:true}).eq('id',USER.id); USER.consent=true; }
+      W.result=data; slotsFor=null;
+      await loadMine();
+      W.step=6; renderWizard(); return;
     }
     W.step++; renderWizard();
   };
@@ -431,18 +513,18 @@ function bindWizard(){
 function bindDone(){
   const g=document.getElementById('gomine'), a=document.getElementById('again');
   if(g) g.onclick=()=>show('mis');
-  if(a) a.onclick=()=>{Object.assign(W,{step:1,lab:null,area:null,prac:null,n:1,slot:null});renderWizard();};
+  if(a) a.onclick=()=>{Object.assign(W,{step:1,lab:null,area:null,prac:null,slot:null,result:null});renderWizard();};
 }
 function alertBox(msg){
   const el=document.createElement('div'); el.className='notice bad'; el.textContent=msg;
-  document.getElementById('wizard').appendChild(el); setTimeout(()=>el.remove(),4000);
+  document.getElementById('wizard').appendChild(el); setTimeout(()=>el.remove(),6000);
 }
 
 /* ===================== PLAZOS ===================== */
-function startDate(di,ti){ const d=new Date(DAYS[di]); d.setHours(TURNOS[ti].ini,0,0,0); return d; }
+function startDate(d,ti){ const x=new Date(d); x.setHours(TURNOS[ti].ini,0,0,0); return x; }
 function addH(d,h){ return new Date(d.getTime()+h*3600000); }
-function deadlines(di,ti){
-  const start=startDate(di,ti);
+function deadlines(d,ti){
+  const start=startDate(d,ti);
   const remind=addH(start,-24);
   let hold=addH(start,-8);
   if(TURNOS[ti].ini<=10){ hold=new Date(start); hold.setDate(hold.getDate()-1); hold.setHours(20,0,0,0); }
@@ -457,26 +539,38 @@ const STATUS = {reservado:['Reservado','p-res'],confirmado:['Confirmado','p-ok']
 function libres(n){ return n===1?'1 lugar libre':n+' lugares libres'; }
 function renderMine(){
   const el=document.getElementById('mylist');
+  if(!USER){ el.innerHTML='<p class="muted">Ingresá desde “Reservar turno” para ver tus turnos.</p>'; return; }
   if(!MY.length){ el.innerHTML='<p class="muted">Todavía no tenés turnos.</p>'; return; }
+  const now=new Date();
   el.innerHTML=MY.map(r=>{
-    const t=TURNOS[r.ti], st=STATUS[r.status], dl=deadlines(r.di,r.ti);
-    return `<div class="res"><div style="flex:1;min-width:220px"><div class="when">${dayLabel(DAYS[r.di])} · ${turnoLabel(t)}</div>
-      <div class="small muted">${PRACT[r.prac].name} · ${libres(CAP-SLOTS[key(r.di,r.ti)].booked)} en el turno</div>
-      ${r.status==='reservado'?`<div class="small muted">Recordatorio: ${fmt(dl.remind)} · Plazo para responder: ${fmt(dl.hold)}</div>`:''}</div>
+    const t=TURNOS[r.ti], st=STATUS[r.status]||[r.status,'p-res'], dl=deadlines(r.date,r.ti), future=dl.start>now;
+    const live=['reservado','confirmado','espera'].includes(r.status)&&future;
+    return `<div class="res"><div style="flex:1;min-width:220px"><div class="when">${dayLabel(r.date)} · ${turnoLabel(t)}</div>
+      <div class="small muted">${esc(PRACT[r.prac].name)}${r.status==='espera'?'':' · '+libres(CAP-r.ocupados)+' en el turno'}</div>
+      ${r.status==='reservado'&&future?`<div class="small muted">Recordatorio: ${fmt(dl.remind)} · Plazo para responder: ${fmt(dl.hold)}</div>`:''}</div>
       <span class="pill ${st[1]}">${st[0]}</span>
-      ${r.status==='reservado'?`<button class="btn sec" data-sim="${r.id}">Simular avisos</button>`:''}</div>`;
+      ${r.status==='reservado'&&future?`<button class="btn" data-conf="${r.id}">Confirmar asistencia</button><button class="btn sec" data-sim="${r.id}">Simular avisos</button>`:''}
+      ${live?`<button class="btn sec" data-canc="${r.id}">Cancelar</button>`:''}</div>`;
   }).join('');
   el.querySelectorAll('[data-sim]').forEach(b=>b.onclick=()=>startSim(+b.dataset.sim));
+  const act=(attr,fn,ask)=>el.querySelectorAll('['+attr+']').forEach(b=>b.onclick=async()=>{
+    if(ask && !confirm(ask)) return;
+    b.disabled=true;
+    const {error}=await sb.rpc(fn,{p_id:+b.dataset[attr.slice(5)]});
+    if(error) alert(errMsg(error));
+    slotsFor=null; await loadMine(); renderMine();
+  });
+  act('data-conf','confirmar_reserva'); act('data-canc','cancelar_reserva','¿Cancelar este turno? El lugar queda libre para otras personas.');
 }
 
-/* ===================== SIMULADOR ===================== */
+/* ===================== SIMULADOR (ilustrativo: no toca la base) ===================== */
 let SIM=null;
 function startSim(id){
-  const r=MY.find(x=>x.id===id), s=SLOTS[key(r.di,r.ti)];
-  const waiter = s.wait.find(w=>!USER||w!==USER.short) || 'Martín G.';
-  if(!s.wait.includes(waiter)) s.wait.push(waiter);
-  SIM={r,s,dl:deadlines(r.di,r.ti),phase:0,who:(USER?USER.first:'Ana'),chat:[],log:[],waiter,ended:false};
-  addLog(`Turno de ${USER?USER.first:'Ana'}: ${fmt(SIM.dl.start)}. lista de espera: ${s.wait.join(', ')}`);
+  const r0=MY.find(x=>x.id===id);
+  const r={...r0}, s={prac:r0.prac,booked:Math.max(r0.ocupados,1),wait:[]};
+  const waiter='Martín G.'; s.wait.push(waiter);
+  SIM={r,s,dl:deadlines(r.date,r.ti),phase:0,who:USER.first,chat:[],log:[],waiter,ended:false};
+  addLog(`Turno de ${USER.first}: ${fmt(SIM.dl.start)}. lista de espera: ${s.wait.join(', ')}`);
   document.getElementById('simcard').classList.remove('hidden');
   renderSim();
   document.getElementById('simcard').scrollIntoView({behavior:'smooth'});
@@ -488,12 +582,12 @@ function simAdvance(){
   const {r,s,dl}=SIM, p=PRACT[r.prac].name, t=TURNOS[r.ti];
   if(SIM.phase===0){
     SIM.phase=1;
-    say(`Hola, ${USER?USER.first:'Ana'}. Mañana ${DNAMES[DAYS[r.di].getDay()]} de ${turnoLabel(t)} tenés turno en el Laboratorio de Biotecnología y Alimentos para la práctica "${p}".\n\nRespondé 1 para confirmar o 2 para cancelar.\nSi no respondés antes de ${fmt(dl.hold)}, tu lugar se libera para otra persona.`,false,tm(dl.remind));
+    say(`Hola, ${USER.first}. Mañana ${DNAMES[r.date.getDay()]} de ${turnoLabel(t)} tenés turno en el Laboratorio de Biotecnología y Alimentos para la práctica "${p}".\n\nRespondé 1 para confirmar o 2 para cancelar.\nSi no respondés antes de ${fmt(dl.hold)}, tu lugar se libera para otra persona.`,false,tm(dl.remind));
     addLog(`${fmt(dl.remind)} · Se envía el recordatorio (24 h antes).`);
   } else if(SIM.phase===1){ // no responde
     SIM.phase=2; r.status='liberado'; s.booked-=r.n;
     sys(`${fmt(dl.hold)} · Sin respuesta: el turno se canceló automáticamente.`);
-    addLog(`${fmt(dl.hold)} · ${USER?USER.first:'Ana'} no respondió. Se libera su lugar: el turno pasa a tener ${libres(CAP-s.booked)} en la turnera.`);
+    addLog(`${fmt(dl.hold)} · ${USER.first} no respondió. Se libera su lugar: el turno pasa a tener ${libres(CAP-s.booked)} en la turnera.`);
     toWaitlist();
   } else if(SIM.phase===3){ // lista de espera no responde
     SIM.phase=4; SIM.ended=true;
@@ -505,18 +599,18 @@ function simAdvance(){
 function toWaitlist(){
   const {r,s,dl}=SIM, p=PRACT[r.prac].name, t=TURNOS[r.ti];
   SIM.phase=3; SIM.who=SIM.waiter; SIM.chat=[];
-  const hoy = DAYS[r.di].getDate()===dl.hold.getDate() ? 'hoy' : 'mañana';
-  say(`Hola, ${SIM.waiter.split(' ')[0]}. Se liberó un lugar ${hoy} ${DNAMES[DAYS[r.di].getDay()]} de ${turnoLabel(t)} para la práctica "${p}".\n\nRespondé 1 para quedártelo o 2 si no podés.\nTenés tiempo hasta las ${tm(dl.wait)} (5 h). Después, el lugar queda libre en la turnera.`,false,tm(dl.hold));
+  const hoy = r.date.getDate()===dl.hold.getDate() ? 'hoy' : 'mañana';
+  say(`Hola, ${SIM.waiter.split(' ')[0]}. Se liberó un lugar ${hoy} ${DNAMES[r.date.getDay()]} de ${turnoLabel(t)} para la práctica "${p}".\n\nRespondé 1 para quedártelo o 2 si no podés.\nTenés tiempo hasta las ${tm(dl.wait)} (5 h). Después, el lugar queda libre en la turnera.`,false,tm(dl.hold));
   addLog(`${fmt(dl.hold)} · Aviso a la lista de espera (${SIM.waiter}), con plazo hasta ${fmt(dl.wait)}.`);
 }
 function simReply(opt){
   const {r,s,dl}=SIM;
   if(SIM.phase===1){
     if(opt===1){ say('1',true,tm(addH(dl.remind,1))); say('¡Listo! Tu turno quedó confirmado. Te esperamos. Recordá llevar guardapolvo.',false,tm(addH(dl.remind,1)));
-      r.status='confirmado'; SIM.ended=true; addLog(`${fmt(addH(dl.remind,1))} · ${USER?USER.first:'Ana'} confirmó. El turno queda firme.`); }
+      r.status='confirmado'; SIM.ended=true; addLog(`${fmt(addH(dl.remind,1))} · ${USER.first} confirmó. El turno queda firme.`); }
     else { say('2',true,tm(addH(dl.remind,2))); say('Cancelaste tu turno. Tu lugar ya está disponible para otras personas. ¡Gracias por avisar!',false,tm(addH(dl.remind,2)));
       r.status='cancelado'; s.booked-=r.n; SIM.phase=2;
-      addLog(`${fmt(addH(dl.remind,2))} · ${USER?USER.first:'Ana'} canceló. El lugar vuelve a la turnera en ese momento (${CAP-s.booked} libres).`);
+      addLog(`${fmt(addH(dl.remind,2))} · ${USER.first} canceló. El lugar vuelve a la turnera en ese momento (${CAP-s.booked} libres).`);
       SIM.pendingWait=true; }
   } else if(SIM.phase===3){
     if(opt===1){ say('1',true,tm(addH(dl.hold,1))); say('¡Es tuyo! Quedaste confirmado en el turno. Te enviamos las normas de la práctica.',false,tm(addH(dl.hold,1)));
@@ -537,14 +631,14 @@ function renderSim(){
   else if(ph===0) ctrl=`<button class="btn" id="simadv">Avanzar a 24 h antes</button>`;
   else if(ph===1) ctrl=`<span class="small muted">Respondé en el celular, o:</span> <button class="btn warn" id="simadv">Dejar pasar el tiempo sin responder</button>`;
   else if(ph===2 && SIM.pendingWait) ctrl=`<button class="btn" id="simwait">Avanzar a ${fmt(dl.hold)} (aviso a la lista de espera)</button>`;
-  else if(ph===3) ctrl=`<span class="small muted">${SIM.waiter} puede responder en el celular, o:</span> <button class="btn warn" id="simadv">Dejar pasar las 5 h sin responder</button>`;
+  else if(ph===3) ctrl=`<span class="small muted">${esc(SIM.waiter)} puede responder en el celular, o:</span> <button class="btn warn" id="simadv">Dejar pasar las 5 h sin responder</button>`;
   const canReply = !SIM.ended && (ph===1||ph===3);
   el.innerHTML=`<div class="row" style="justify-content:space-between"><div><h2>Simulador de confirmación</h2>
-    <div class="muted small">${dayLabel(DAYS[r.di])} · ${turnoLabel(TURNOS[r.ti])} · ${PRACT[r.prac].name}</div></div>
+    <div class="muted small">${dayLabel(r.date)} · ${turnoLabel(TURNOS[r.ti])} · ${esc(PRACT[r.prac].name)} · solo ilustrativo, no modifica tus reservas</div></div>
     <button class="btn sec" id="simclose">Cerrar</button></div>
     <div class="sim"><div class="phone"><div class="screen">
-      <div class="wahead"><div class="av">🧪</div><div><b>Labo Abierto UNPILAR</b><div style="font-size:11px;opacity:.8">Mensajes a ${SIM.who}</div></div></div>
-      <div class="chat" id="chat">${SIM.chat.length?SIM.chat.map(m=>m.sys?`<div class="msg sys">${m.text}</div>`:`<div class="msg ${m.me?'me':''}">${m.text}<span class="tm">${m.time}</span></div>`).join(''):'<div class="msg sys">Todavía no hay mensajes. Avanzá en el tiempo para ver el recordatorio.</div>'}</div>
+      <div class="wahead"><div class="av">🧪</div><div><b>Labo Abierto UNPILAR</b><div style="font-size:11px;opacity:.8">Mensajes a ${esc(SIM.who)}</div></div></div>
+      <div class="chat" id="chat">${SIM.chat.length?SIM.chat.map(m=>m.sys?`<div class="msg sys">${esc(m.text)}</div>`:`<div class="msg ${m.me?'me':''}">${esc(m.text)}<span class="tm">${m.time}</span></div>`).join(''):'<div class="msg sys">Todavía no hay mensajes. Avanzá en el tiempo para ver el recordatorio.</div>'}</div>
       <div class="chatbtns"><button id="r1" ${canReply?'':'disabled'}>1 · Confirmar</button><button id="r2" ${canReply?'':'disabled'}>2 · Cancelar</button></div>
     </div></div>
     <div>
@@ -556,40 +650,56 @@ function renderSim(){
         <div class="tli"><div class="h">${fmt(dl.start)} · Inicio del turno</div></div>
       </div>
       <div class="row">${ctrl}</div>
-      <div class="mini"><div class="box">Lugares libres en la turnera: <b>${CAP-s.booked}</b> de ${CAP}</div><div class="box">Lista de espera: <b>${s.wait.length?s.wait.join(', '):'vacía'}</b></div></div>
-      <div class="log">${SIM.log.map(l=>`<div>• ${l}</div>`).join('')}</div>
+      <div class="mini"><div class="box">Lugares libres en la turnera: <b>${CAP-s.booked}</b> de ${CAP}</div><div class="box">Lista de espera: <b>${s.wait.length?esc(s.wait.join(', ')):'vacía'}</b></div></div>
+      <div class="log">${SIM.log.map(l=>`<div>• ${esc(l)}</div>`).join('')}</div>
     </div></div>`;
   const c=document.getElementById('chat'); c.scrollTop=c.scrollHeight;
   const on=(id,f)=>{const b=document.getElementById(id); if(b) b.onclick=f;};
   on('simadv',simAdvance); on('r1',()=>simReply(1)); on('r2',()=>simReply(2));
   on('simwait',()=>{SIM.pendingWait=false; toWaitlist(); renderSim();});
-  on('simclose',()=>{document.getElementById('simcard').classList.add('hidden'); renderMine();});
-  on('simreset',()=>{document.getElementById('simcard').classList.add('hidden'); renderMine(); window.scrollTo(0,0);});
-  renderMine();
+  on('simclose',()=>{document.getElementById('simcard').classList.add('hidden');});
+  on('simreset',()=>{document.getElementById('simcard').classList.add('hidden'); window.scrollTo(0,0);});
 }
 
 /* ===================== NORMAS ===================== */
-document.getElementById('normcards').innerHTML = Object.values(PRACT).map(p=>`<div class="card">
-  <h3>${p.name}</h3>
-  <div>${p.areas.map(a=>`<span class="tag">${a==='biotec'?'Biotecnología':'Alimentos'}</span>`).join('')}<span class="tag" style="background:var(--accent2);color:var(--warn)">1 turno · 2 h</span></div>
-  <div class="small" style="margin-top:6px"><b>Equipamiento:</b> ${p.equipo}</div>
-  <div class="small"><b>Protección:</b> ${p.epp}</div>
-  <ul class="clean small">${p.prec.map(x=>`<li>${x}</li>`).join('')}</ul></div>`).join('') +
-  `<div class="card"><h3>Para todas las prácticas</h3><ul class="clean small"><li>No comer, beber ni maquillarse en el laboratorio</li><li>Cabello recogido y calzado cerrado</li><li>Ubicar la salida de emergencia, el lavaojos y el matafuegos</li><li>La IA sirve para repasar, pero no reemplaza el protocolo ni las indicaciones docentes</li></ul></div>`;
+function renderNormas(){
+  document.getElementById('normcards').innerHTML = Object.values(PRACT).map(p=>`<div class="card">
+    <h3>${esc(p.name)}</h3>
+    <div>${p.areas.map(a=>`<span class="tag">${esc(areaName(a))}</span>`).join('')}<span class="tag" style="background:var(--accent2);color:var(--warn)">1 turno · 2 h</span></div>
+    <div class="small" style="margin-top:6px"><b>Equipamiento:</b> ${esc(p.equipo)}</div>
+    <div class="small"><b>Protección:</b> ${esc(p.epp)}</div>
+    <ul class="clean small">${p.prec.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`).join('') +
+    `<div class="card"><h3>Para todas las prácticas</h3><ul class="clean small"><li>No comer, beber ni maquillarse en el laboratorio</li><li>Cabello recogido y calzado cerrado</li><li>Ubicar la salida de emergencia, el lavaojos y el matafuegos</li><li>La IA sirve para repasar, pero no reemplaza el protocolo ni las indicaciones docentes</li></ul></div>`;
+  document.getElementById('qprac').innerHTML=Object.entries(PRACT).map(([k,p])=>`<option value="${k}">${esc(p.name)}</option>`).join('');
+}
 
 /* ===================== FORO ===================== */
-const THREADS=[
-  {p:'titu',q:'¿Cómo me doy cuenta del punto final si el color cambia muy rápido?',a:'Agregá el titulante gota a gota cuando te acerques al volumen esperado y mirá contra un papel blanco. — Tutor par, 3.er año'},
-  {p:'sol',q:'¿Puedo usar la misma pipeta para dos soluciones distintas?',a:'Solo si la enjuagás antes con agua destilada y después con la nueva solución. — Docente'},
-  {p:'micro',q:'No logro enfocar con el objetivo de 40x.',a:'Enfocá primero con 10x y recién después cambiá de objetivo; ajustá solo con el tornillo micrométrico.'}
-];
-function renderForo(){
-  document.getElementById('threads').innerHTML=THREADS.map(t=>`<div class="thread"><span class="tag">${PRACT[t.p].name}</span><div style="font-weight:600;margin-top:4px">${t.q}</div>${t.a?`<div class="ans">${t.a}</div>`:'<div class="small muted" style="margin-top:6px">Esperando respuesta…</div>'}</div>`).join('');
+let THREADS=[], FORO_OK=false;
+async function renderForo(){
+  const box=document.getElementById('threads');
+  box.innerHTML='<p class="muted">Cargando…</p>';
+  FORO_OK=false; THREADS=[];
+  if(USER){
+    const ok=await sb.rpc('tiene_reserva'); FORO_OK=ok.data===true;
+    if(FORO_OK){
+      const {data,error}=await sb.from('foro_hilos').select('id,practica_id,pregunta,respuesta,respondido_por').order('created_at',{ascending:false});
+      if(error) console.error(error); THREADS=data||[];
+    }
+  }
+  document.querySelectorAll('#qform select,#qform textarea,#qform button').forEach(x=>x.disabled=!FORO_OK);
+  if(!USER){ box.innerHTML='<div class="notice info">Ingresá desde “Reservar turno” para entrar al foro.</div>'; return; }
+  if(!FORO_OK){ box.innerHTML='<div class="notice info">El foro se habilita cuando reservás tu primer turno.</div>'; return; }
+  box.innerHTML=THREADS.map(t=>`<div class="thread"><span class="tag">${esc((PRACT[t.practica_id]||{}).name||t.practica_id)}</span><div style="font-weight:600;margin-top:4px">${esc(t.pregunta)}</div>${t.respuesta?`<div class="ans">${esc(t.respuesta)}${t.respondido_por?' — '+esc(t.respondido_por):''}</div>`:'<div class="small muted" style="margin-top:6px">Esperando respuesta…</div>'}</div>`).join('') || '<p class="muted">Todavía no hay consultas.</p>';
 }
-document.getElementById('qprac').innerHTML=Object.entries(PRACT).map(([k,p])=>`<option value="${k}">${p.name}</option>`).join('');
-document.getElementById('qform').onsubmit=e=>{e.preventDefault(); const t=document.getElementById('qtext'); if(!t.value.trim())return;
-  THREADS.unshift({p:document.getElementById('qprac').value,q:t.value.trim(),a:null}); t.value=''; renderForo();};
-renderForo();
+document.getElementById('qform').onsubmit=async e=>{
+  e.preventDefault();
+  const t=document.getElementById('qtext'), q=t.value.trim();
+  if(q.length<5){ alert('Escribí tu pregunta (mínimo 5 caracteres).'); return; }
+  const btn=e.target.querySelector('button'); btn.disabled=true;
+  const {error}=await sb.from('foro_hilos').insert({practica_id:document.getElementById('qprac').value,pregunta:q});
+  if(error){ alert(errMsg(error)); btn.disabled=false; return; }
+  t.value=''; renderForo();
+};
 
 /* ===================== QR ===================== */
 let qrDone=false;
@@ -600,7 +710,27 @@ function renderQR(){
   catch(e){ box.innerHTML='<div class="small muted">[Código QR al sitio]</div>'; }
 }
 
-renderWizard();
+/* ===================== ARRANQUE ===================== */
+async function boot(){
+  const w=document.getElementById('wizard');
+  w.innerHTML='<p class="muted">Cargando…</p>';
+  try{ await loadCatalog(); }
+  catch(e){ w.innerHTML=`<div class="notice bad">No se pudo conectar con la base de datos: ${esc(e.message||'')}</div>`; return; }
+  renderNormas();
+  const n=new Date(); if(n.getDay()===0||(n.getDay()===6&&n.getHours()>=15)) W.week=1;
+  buildDays(W.week);
+  sb.auth.onAuthStateChange((ev,session)=>{
+    if(ev==='TOKEN_REFRESHED') return;
+    setTimeout(async()=>{
+      const uid=session?session.user.id:null;
+      if(ev!=='SIGNED_OUT' && USER && USER.id===uid) return; // evita reiniciar el asistente al volver a la pestaña
+      await loadUser(session); await loadMine();
+      slotsFor=null; Object.assign(W,{step:1,lab:null,area:null,prac:null,slot:null,result:null});
+      renderWizard(); show(CUR);
+    },0);
+  });
+}
+boot();
 </script>
 </body>
 </html>
