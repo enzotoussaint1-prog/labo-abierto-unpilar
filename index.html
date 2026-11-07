@@ -4,11 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Labo Abierto UNPILAR</title>
-<meta name="theme-color" content="#00579e">
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
-<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="apple-mobile-web-app-title" content="Labo UNPILAR">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -634,7 +629,8 @@ function renderMine(){
       ${r.status==='reservado'&&future?`<div class="small muted">${dl.remind>now?'Recordatorio: '+fmt(dl.remind)+' · ':''}Confirmá antes de: <b>${fmt(r.hasta||dl.hold)}</b> o el lugar se libera</div>`:''}</div>
       <span class="pill ${st[1]}">${st[0]}</span>
       ${r.status==='reservado'&&future?`<button class="btn" data-conf="${r.id}">Confirmar asistencia</button><button class="btn sec" data-sim="${r.id}">Simular avisos</button>`:''}
-      ${live?`<button class="btn sec" data-canc="${r.id}">Cancelar</button>`:''}</div>`;
+      ${live?`<button class="btn sec" data-canc="${r.id}">Cancelar</button>`:''}
+      ${live?guiaPractica(PRACT[r.prac]):''}</div>`;
   }).join('');
   el.querySelectorAll('[data-sim]').forEach(b=>b.onclick=()=>startSim(+b.dataset.sim));
   const act=(attr,fn,ask)=>el.querySelectorAll('['+attr+']').forEach(b=>b.onclick=async()=>{
@@ -755,6 +751,15 @@ function materialHTML(p){
   if(p.vidUrl) h+=a(p.vidUrl,'▶ Ver video');
   const v=p.vidPath?`<video controls preload="none" playsinline src="${esc(matURL(p.vidPath))}" style="width:100%;max-width:520px;border-radius:10px;margin-top:8px;background:#000"></video>`:'';
   return (h||v)?`<div style="margin-top:8px">${h}${v}</div>`:'';
+}
+
+function guiaPractica(p){
+  if(!p) return '';
+  return `<div style="flex-basis:100%;border-top:1px solid var(--line);padding-top:10px"><div style="font-weight:600">Para tu práctica: ${esc(p.name)}</div>
+    ${p.equipo?`<div class="small" style="margin-top:4px"><b>Equipamiento:</b> ${esc(p.equipo)}</div>`:''}
+    ${p.epp?`<div class="small"><b>Protección:</b> ${esc(p.epp)}</div>`:''}
+    ${p.prec.length?`<ul class="clean small">${p.prec.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+    ${materialHTML(p)||'<div class="small muted" style="margin-top:6px">Todavía no hay material de apoyo cargado para esta práctica.</div>'}</div>`;
 }
 
 /* ===================== NORMAS ===================== */
