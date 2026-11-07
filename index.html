@@ -176,7 +176,7 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
           <li>Cada jornada tiene <b>dos turnos de 2 horas</b>: mañana 8–10 y 10–12 · tarde 13–15 y 15–17 · noche 18–20 y 20–22. Los sábados, solo mañana y tarde.</li>
           <li>El laboratorio es un espacio único y chico: <b>en cada turno se hace una sola práctica</b>. La primera reserva define la práctica del turno; después, solo pueden sumarse quienes hagan esa misma práctica.</li>
           <li>El cupo es de <b>12 personas por turno</b> y se descuenta por día y turno, sin importar la carrera.</li>
-          <li><b>La reserva es individual:</b> cada estudiante ingresa con sus datos (DNI, correo institucional y celular) y toma su propio turno. No hay reservas grupales ni a nombre de otra persona.</li>
+          <li><b>La reserva es individual:</b> cada estudiante ingresa con sus datos (DNI, correo y celular) y toma su propio turno. No hay reservas grupales ni a nombre de otra persona.</li>
           <li>Se reserva como en unpilarapp: <b>Laboratorio → Área (carrera) → Práctica → Fecha y horario → Confirmación</b>.</li>
           <li>Máximo 2 turnos activos por persona. Dos turnos sin confirmar o sin asistir suspenden las reservas por una semana.</li>
         </ul>
@@ -237,8 +237,6 @@ const SUPABASE_URL = 'https://cdjsatazelokimilojxs.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_OeFgd6zm_lDs61SSfZV_kg_X7TfJQLw';
 const RECOVERY_LINK = /type=recovery/.test(location.hash); // el cliente limpia el hash al iniciar: se detecta antes
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const DOMINIO = 'unpilar.edu.ar'; // la regla real la aplica la base (tabla dominios_permitidos); esto es solo para avisar antes
-const esInstitucional = m => { const d=(m.split('@')[1]||'').toLowerCase(); return d===DOMINIO || d.endsWith('.'+DOMINIO); };
 const PAGE_URL = location.origin + location.pathname; // adonde vuelven los links de los correos
 
 /* ===================== UTILIDADES ===================== */
@@ -256,7 +254,7 @@ const ERR = {
   'Invalid login credentials':'Correo o contraseña incorrectos.',
   'User already registered':'Ese correo ya tiene una cuenta. Ingresá con tu contraseña.',
   'Email not confirmed':'Todavía no confirmaste tu correo. Revisá tu bandeja de entrada.',
-  'Database error saving new user':'Ese correo no es institucional. Usá tu correo @'+DOMINIO+'.',
+  'Database error saving new user':'No se pudo crear la cuenta. Probá de nuevo en unos minutos.',
   'New password should be different from the old password.':'La nueva contraseña tiene que ser distinta de la anterior.'
 };
 const errMsg = e => { const m=(e && e.message)||'';
@@ -361,7 +359,7 @@ function renderLogin(msg){
       ${su?`<label class="f" for="lname">Nombre y apellido</label><input type="text" id="lname" required autocomplete="name">
       <label class="f" for="ldni">DNI</label><input type="text" id="ldni" required inputmode="numeric" autocomplete="off">
       <label class="f" for="lphone">Celular (WhatsApp)</label><input type="tel" id="lphone" required autocomplete="tel">`:''}
-      <label class="f" for="lmail">Correo institucional</label><input type="email" id="lmail" required autocomplete="email" placeholder="nombre@${DOMINIO}">
+      <label class="f" for="lmail">Correo electrónico</label><input type="email" id="lmail" required autocomplete="email" placeholder="tu@correo.com">
       <label class="f" for="lpass">Contraseña</label><input type="password" id="lpass" required minlength="${su?8:6}" autocomplete="${su?'new-password':'current-password'}">${su?'<div class="small muted">Mínimo 8 caracteres.</div>':''}
       ${su?`<label class="row small" style="margin-top:12px;align-items:flex-start;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="lconsent" style="margin-top:3px">
       <span>Acepto recibir por WhatsApp los avisos de mis turnos de Labo Abierto UNPILAR. Mis datos se usan solo para gestionar las reservas (Ley 25.326).</span></label>`:''}
@@ -388,7 +386,6 @@ function renderLogin(msg){
     document.querySelector('#login button[type=submit]').disabled=true;
     const email=document.getElementById('lmail').value.trim(), password=document.getElementById('lpass').value;
     if(su){
-      if(!esInstitucional(email)) return fail('Usá tu correo institucional (@'+DOMINIO+').');
       if(password.length<8) return fail('La contraseña debe tener al menos 8 caracteres.');
       const {data,error}=await sb.auth.signUp({email,password,options:{emailRedirectTo:PAGE_URL,data:{
         nombre:document.getElementById('lname').value.trim(), dni:document.getElementById('ldni').value.trim(),
