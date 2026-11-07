@@ -118,6 +118,12 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
 .thread .ans{margin-top:10px;padding:10px 12px;border-left:3px solid var(--brand);background:var(--bg);border-radius:0 8px 8px 0;font-size:14px}
 #qrbox{width:200px;height:200px;margin:10px auto;display:grid;place-items:center}
 .poster{max-width:360px;margin:0 auto;text-align:center;border:2px solid var(--ink);border-radius:16px;padding:22px;background:#fff}
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0}
+.seg button{font:inherit;font-weight:600;border:1.5px solid var(--line);background:#fff;color:var(--ink2);padding:8px 14px;border-radius:999px;cursor:pointer}
+.seg button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.dcard{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:4px 0;cursor:pointer}
+.chk input{margin-top:3px}
 .hidden{display:none!important}
 </style>
 </head>
@@ -138,6 +144,7 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
     <button data-v="reglas">Reglas de uso</button>
     <button data-v="foro">Foro de Laboratorio</button>
     <button data-v="cuenta">Mi cuenta</button>
+    <button data-v="docente" id="tabdoc" class="hidden">Panel docente</button>
     <button data-v="qr">Cartel QR</button>
   </nav>
 </header>
@@ -153,7 +160,7 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
   <section id="v-mis" class="hidden">
     <div class="card">
       <h2>Mis turnos</h2>
-      <p class="muted small" style="margin:0">Acá ves, confirmás y cancelás tus reservas. Los avisos por WhatsApp todavía no están conectados: “Simular avisos” muestra cómo van a funcionar.</p>
+      <p class="muted small" style="margin:0">Acá ves, confirmás y cancelás tus reservas. Los avisos te llegan por correo (recordatorio 24 h antes y aviso si se libera un lugar). “Simular avisos” es una demostración de cómo funcionan los plazos.</p>
       <div class="list" id="mylist" style="margin-top:14px"></div>
     </div>
     <div class="card hidden" id="simcard" style="margin-top:18px"></div>
@@ -163,7 +170,7 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
   <section id="v-normas" class="hidden">
     <div class="card" style="margin-bottom:16px">
       <h2>Normas y precauciones por práctica</h2>
-      <p class="muted small" style="margin:0">Al reservar, cada persona recibe por correo y WhatsApp el kit de la práctica que eligió. Los datos son de ejemplo: el equipo docente completa los reales.</p>
+      <p class="muted small" style="margin:0">Estas son las normas y precauciones de cada práctica. Las carga y actualiza el equipo docente.</p>
     </div>
     <div class="cards" id="normcards"></div>
   </section>
@@ -173,19 +180,12 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
     <div class="two">
       <div class="card">
         <h2>Cómo se organizan los turnos</h2>
-        <ul class="clean">
-          <li>Cada jornada tiene <b>dos turnos de 2 horas</b>: mañana 8–10 y 10–12 · tarde 13–15 y 15–17 · noche 18–20 y 20–22. Los sábados, solo mañana y tarde.</li>
-          <li>El laboratorio es un espacio único y chico: <b>en cada turno se hace una sola práctica</b>. La primera reserva define la práctica del turno; después, solo pueden sumarse quienes hagan esa misma práctica.</li>
-          <li>El cupo es de <b>12 personas por turno</b> y se descuenta por día y turno, sin importar la carrera.</li>
-          <li><b>La reserva es individual:</b> cada estudiante ingresa con sus datos (DNI, correo y celular) y toma su propio turno. No hay reservas grupales ni a nombre de otra persona.</li>
-          <li>Se reserva como en unpilarapp: <b>Laboratorio → Área (carrera) → Práctica → Fecha y horario → Confirmación</b>.</li>
-          <li>Máximo 2 turnos activos por persona. Dos turnos sin confirmar o sin asistir suspenden las reservas por una semana.</li>
-        </ul>
+        <ul class="clean" id="reglaslist"></ul>
       </div>
       <div class="card">
         <h2>Confirmación y lista de espera</h2>
         <div class="tl">
-          <div class="tli past"><div class="h">24 h antes</div><div class="small muted">Llega el WhatsApp para confirmar o cancelar.</div></div>
+          <div class="tli past"><div class="h">24 h antes</div><div class="small muted">Llega un correo para confirmar o cancelar.</div></div>
           <div class="tli past"><div class="h">Si cancela</div><div class="small muted">El lugar vuelve a la turnera en ese momento.</div></div>
           <div class="tli now"><div class="h">8 h antes</div><div class="small muted">Vence el plazo. Si no respondió, el turno se libera solo y se avisa a la lista de espera.</div></div>
           <div class="tli"><div class="h">3 h antes</div><div class="small muted">Vencen las 5 h de la lista de espera. Los lugares sin confirmar quedan libres para cualquiera.</div></div>
@@ -220,6 +220,11 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
   <!-- MI CUENTA -->
   <section id="v-cuenta" class="hidden">
     <div id="cuentabox"></div>
+  </section>
+
+  <!-- PANEL DOCENTE -->
+  <section id="v-docente" class="hidden">
+    <div id="docentebox"></div>
   </section>
 
   <!-- QR -->
@@ -268,20 +273,22 @@ const errMsg = e => { const m=(e && e.message)||'';
   return ERR[m] || m || 'Ocurrió un error. Probá de nuevo.'; };
 
 /* ===================== CATÁLOGO (desde la base) ===================== */
-let LABS = [], PRACT = {}, TURNOS = [];
+let LABS = [], PRACT = {}, TURNOS = [], REGLAS = [];
 async function loadCatalog(){
-  const [l,a,p,pa,t] = await Promise.all([
+  const [l,a,p,pa,t,rg] = await Promise.all([
     sb.from('labs').select('*'), sb.from('areas').select('*').order('nombre'),
     sb.from('practicas').select('*').order('nombre'), sb.from('practica_areas').select('*'),
-    sb.from('turnos').select('*').order('id')]);
-  const bad = [l,a,p,pa,t].find(x=>x.error); if(bad) throw bad.error;
+    sb.from('turnos').select('*').order('id'),
+    sb.from('reglas_uso').select('*').order('orden')]);
+  const bad = [l,a,p,pa,t,rg].find(x=>x.error); if(bad) throw bad.error;
   LABS = l.data.sort((x,y)=>(y.activo-x.activo)||x.nombre.localeCompare(y.nombre)).map(x=>({
     id:x.id, name:x.nombre, desc:x.descripcion||'', active:x.activo,
     areas:a.data.filter(y=>y.lab_id===x.id).map(y=>({id:y.id,name:y.nombre}))}));
   PRACT = {};
-  p.data.forEach(x=>PRACT[x.id]={name:x.nombre, equipo:x.equipo||'', epp:x.epp||'', prec:x.precauciones||[],
+  p.data.forEach(x=>PRACT[x.id]={activa:x.activa!==false, name:x.nombre, equipo:x.equipo||'', epp:x.epp||'', prec:x.precauciones||[],
     areas:pa.data.filter(y=>y.practica_id===x.id).map(y=>y.area_id)});
   TURNOS = t.data.map(x=>({id:x.id,f:x.franja,ini:x.hora_ini,fin:x.hora_fin}));
+  REGLAS = rg.data;
 }
 const areaName = id => { for(const l of LABS){ const a=l.areas.find(x=>x.id===id); if(a) return a.name; } return id; };
 
@@ -308,12 +315,14 @@ async function loadSlots(){
 let CUR='reservar';
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>show(b.dataset.v));
 function show(v){
+  if(v==='docente' && !(USER&&USER.docente)) v='reservar';
   CUR=v;
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
-  ['reservar','mis','normas','reglas','foro','cuenta','qr'].forEach(x=>document.getElementById('v-'+x).classList.toggle('hidden',x!==v));
+  ['reservar','mis','normas','reglas','foro','cuenta','docente','qr'].forEach(x=>document.getElementById('v-'+x).classList.toggle('hidden',x!==v));
   if(v==='mis'){ renderMine(); loadMine().then(renderMine); }
   if(v==='foro') renderForo();
   if(v==='cuenta') renderCuenta();
+  if(v==='docente') renderDocente();
   if(v==='qr') renderQR();
   window.scrollTo(0,0);
 }
@@ -329,12 +338,14 @@ async function loadUser(session){
   const p=data||{}, name=(p.nombre||'').trim()||session.user.email, parts=name.split(' ');
   USER={id:session.user.id, name, dni:p.dni||'', mail:session.user.email, phone:p.celular||'', consent:!!p.acepta_whatsapp,
         first:parts[0], short:parts[0]+(parts[1]?' '+parts[1].charAt(0)+'.':'')};
+  try{ const d=await sb.rpc('es_docente'); USER.docente=d.data===true; }catch(e){ USER.docente=false; }
   updatePill();
 }
 function updatePill(){
   const el=document.getElementById('userpill');
+  document.getElementById('tabdoc').classList.toggle('hidden',!(USER&&USER.docente));
   if(!USER){ el.textContent='Sin ingresar'; return; }
-  el.innerHTML=esc(USER.name)+(USER.dni?' · DNI '+esc(USER.dni):'')+
+  el.innerHTML=esc(USER.name)+(USER.dni?' · DNI '+esc(USER.dni):'')+(USER.docente?' · Docente':'')+
     ' <button id="logout" style="margin-left:8px;background:rgba(255,255,255,.2);border:0;color:inherit;border-radius:8px;padding:2px 8px;cursor:pointer;font:inherit;font-size:12px">Salir</button>';
   document.getElementById('logout').onclick=()=>sb.auth.signOut();
 }
@@ -362,22 +373,22 @@ function renderLogin(msg){
   const su=AUTHMODE==='signup';
   document.getElementById('steps').innerHTML='';
   document.getElementById('wizard').innerHTML=`<div class="two"><div><h2>${su?'Creá tu cuenta':'Ingresá con tu cuenta'}</h2>
-    <p class="muted small">La turnera es individual: cada estudiante entra con sus propios datos y toma su turno. Los avisos de confirmación llegan a tu WhatsApp.</p>
+    <p class="muted small">La turnera es individual: cada estudiante entra con sus propios datos y toma su turno. Los avisos de confirmación llegan a tu correo.</p>
     ${msg?`<div class="notice ok small">${esc(msg)}</div>`:''}
     <form id="login">
       ${su?`<label class="f" for="lname">Nombre y apellido</label><input type="text" id="lname" required maxlength="100" autocomplete="name">
       <label class="f" for="ldni">DNI</label><input type="text" id="ldni" required maxlength="20" inputmode="numeric" autocomplete="off">
-      <label class="f" for="lphone">Celular (WhatsApp)</label><input type="tel" id="lphone" required maxlength="30" autocomplete="tel">`:''}
+      <label class="f" for="lphone">Celular</label><input type="tel" id="lphone" required maxlength="30" autocomplete="tel">`:''}
       <label class="f" for="lmail">Correo electrónico</label><input type="email" id="lmail" required autocomplete="email" placeholder="tu@correo.com">
       <label class="f" for="lpass">Contraseña</label><input type="password" id="lpass" required minlength="${su?8:6}" autocomplete="${su?'new-password':'current-password'}">${su?'<div class="small muted">Mínimo 8 caracteres.</div>':''}
       ${su?`<label class="row small" style="margin-top:12px;align-items:flex-start;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="lconsent" style="margin-top:3px">
-      <span>Acepto recibir por WhatsApp los avisos de mis turnos de Labo Abierto UNPILAR. Mis datos se usan solo para gestionar las reservas (Ley 25.326).</span></label>`:''}
+      <span>Acepto recibir por correo electrónico los avisos de mis turnos de Labo Abierto UNPILAR. Mis datos se usan solo para gestionar las reservas (Ley 25.326).</span></label>`:''}
       ${su?'':'<div style="margin-top:8px"><button type="button" id="forgot" style="background:none;border:0;padding:0;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit;font-size:13px">¿Olvidaste tu contraseña?</button></div>'}
       <div id="autherr"></div>
       <button class="btn" style="margin-top:16px" type="submit">${su?'Crear cuenta':'Ingresar a la turnera'}</button>
       <button class="btn sec" style="margin-top:16px;margin-left:8px" type="button" id="toggleauth">${su?'Ya tengo cuenta':'Crear cuenta'}</button>
     </form></div>
-    <div class="notice info" style="align-self:start"><b>Cómo funciona</b><br>1. Ingresás con tus datos.<br>2. Elegís laboratorio, área (carrera) y práctica.<br>3. Tomás tu lugar en un turno de 2 h.<br>4. Un día antes confirmás por WhatsApp.</div></div>`;
+    <div class="notice info" style="align-self:start"><b>Cómo funciona</b><br>1. Ingresás con tus datos.<br>2. Elegís laboratorio, área (carrera) y práctica.<br>3. Tomás tu lugar en un turno de 2 h.<br>4. Un día antes te llega un correo para confirmar.</div></div>`;
   const fail=m=>{ document.getElementById('autherr').innerHTML=`<div class="notice bad small">${esc(m)}</div>`; document.querySelector('#login button[type=submit]').disabled=false; };
   document.getElementById('toggleauth').onclick=()=>{ AUTHMODE=su?'login':'signup'; renderLogin(); };
   const forgot=document.getElementById('forgot');
@@ -453,10 +464,10 @@ function renderWizard(){
   if(W.step===2){
     const lab=LABS.find(l=>l.id===W.lab);
     h=`<h2>Elegí tu área (carrera)</h2><p class="muted small" style="margin:0">${esc(lab.name)}</p>
-    <div class="opts">${lab.areas.map(a=>`<button class="opt ${W.area===a.id?'sel':''}" data-area="${a.id}"><div class="t">${esc(a.name)}</div><div class="small muted">${Object.values(PRACT).filter(p=>p.areas.includes(a.id)).length} prácticas disponibles</div></button>`).join('')}</div>`;
+    <div class="opts">${lab.areas.map(a=>`<button class="opt ${W.area===a.id?'sel':''}" data-area="${a.id}"><div class="t">${esc(a.name)}</div><div class="small muted">${Object.values(PRACT).filter(p=>p.activa&&p.areas.includes(a.id)).length} prácticas disponibles</div></button>`).join('')}</div>`;
   }
   if(W.step===3){
-    const ps=Object.entries(PRACT).filter(([k,p])=>p.areas.includes(W.area));
+    const ps=Object.entries(PRACT).filter(([k,p])=>p.activa&&p.areas.includes(W.area));
     h=`<h2>¿Qué práctica vas a hacer?</h2><p class="muted small" style="margin:0">La práctica define el turno: en el laboratorio no se pueden hacer dos prácticas distintas a la vez.</p>
     <div class="opts">${ps.map(([k,p])=>`<button class="opt ${W.prac===k?'sel':''}" data-prac="${k}"><div class="t">${esc(p.name)}</div><div class="small muted">${esc(p.equipo)} · 1 turno (2 h)</div></button>`).join('')}</div>
     <div class="notice info small">La reserva es individual: cada estudiante toma su propio lugar con sus datos. Si querés ir con compañeras o compañeros, cada uno reserva su lugar en el mismo turno.</div>`;
@@ -487,12 +498,12 @@ function renderWizard(){
         <div>Estudiante</div><div>${esc(USER.name)} · DNI ${esc(USER.dni)}</div>
         <div>Lugares</div><div>${isWait?'Turno completo':`Quedan ${CAP-s.booked} de ${CAP} → quedarán ${CAP-s.booked-1}`}</div>
       </div>
-      ${isWait?'<div class="notice info small">Si se libera un lugar, te llega un WhatsApp unas 8 h antes del turno y tenés 5 h para confirmarlo.</div>':''}
+      ${isWait?'<div class="notice info small">Si se libera un lugar, te llega un correo unas 8 h antes del turno y tenés 5 h para confirmarlo.</div>':''}
       </div><div>
-      <h3>Tus datos</h3><div class="kv"><div>Correo</div><div>${esc(USER.mail)}</div><div>WhatsApp</div><div>${esc(USER.phone)}</div></div>
+      <h3>Tus datos</h3><div class="kv"><div>Correo</div><div>${esc(USER.mail)}</div><div>Celular</div><div>${esc(USER.phone)}</div></div>
       <p class="small muted">Los avisos llegan solo a tu número. No se puede reservar a nombre de otra persona.</p>
       <label class="row small" style="margin-top:12px;align-items:flex-start;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="fconsent" ${USER.consent?'checked':''} style="margin-top:3px">
-      <span>Acepto recibir por WhatsApp los avisos de mis turnos de Labo Abierto UNPILAR. Mis datos se usan solo para gestionar las reservas (Ley 25.326).</span></label>
+      <span>Acepto recibir por correo electrónico los avisos de mis turnos de Labo Abierto UNPILAR. Mis datos se usan solo para gestionar las reservas (Ley 25.326).</span></label>
       </div></div>`;
   }
   if(W.step===6){
@@ -504,7 +515,7 @@ function renderWizard(){
       <div><h3>Qué sigue</h3>
       ${isWait?'<p class="small">Si alguien cancela o no confirma, te avisamos unas 8 h antes del turno y tenés 5 h para quedarte con el lugar.</p>':
         (isConf?'<p class="small">Como faltan menos de 24 h para el turno, quedó confirmado al reservar.</p>':
-        `<p class="small">Un día antes te llega un WhatsApp para confirmar. Si no respondés hasta ${fmt(deadlines(DAYS[di],ti).hold)} o cancelás, el lugar se libera en la turnera.</p>`)}
+        `<p class="small">Un día antes te llega un correo para confirmar. Si no confirmás hasta ${fmt(deadlines(DAYS[di],ti).hold)} o cancelás, el lugar se libera en la turnera.</p>`)}
       <div class="row"><button class="btn" id="gomine">Ver mis turnos</button><button class="btn sec" id="again">Hacer otra reserva</button></div></div></div>`;
   }
   if(W.step>=1 && W.step<=5){
@@ -550,7 +561,7 @@ function bindWizard(){
   if(next) next.onclick=async()=>{
     if(W.step===5){
       const c=document.getElementById('fconsent');
-      if(!c.checked){ alertBox('Para recibir los avisos de confirmación hace falta aceptar los mensajes de WhatsApp.'); return; }
+      if(!c.checked){ alertBox('Para recibir los avisos de confirmación hace falta aceptar los avisos por correo.'); return; }
       const label=next.textContent; next.disabled=true; next.textContent='Reservando…';
       const [di,ti]=W.slot.split('-').map(Number);
       const {data,error}=await sb.rpc('reservar_turno',{p_fecha:iso(DAYS[di]),p_turno:TURNOS[ti].id,p_practica:W.prac,p_area:W.area});
@@ -667,7 +678,7 @@ function simReply(opt){
       addLog(`${fmt(addH(dl.remind,2))} · ${USER.first} canceló. El lugar vuelve a la turnera en ese momento (${CAP-s.booked} libres).`);
       SIM.pendingWait=true; }
   } else if(SIM.phase===3){
-    if(opt===1){ say('1',true,tm(addH(dl.hold,1))); say('¡Es tuyo! Quedaste confirmado en el turno. Te enviamos las normas de la práctica.',false,tm(addH(dl.hold,1)));
+    if(opt===1){ say('1',true,tm(addH(dl.hold,1))); say('¡Es tuyo! Quedaste confirmado en el turno. Las normas están en “Normas por práctica”.',false,tm(addH(dl.hold,1)));
       s.booked+=1; s.wait=s.wait.filter(w=>w!==SIM.waiter); SIM.ended=true;
       addLog(`${fmt(addH(dl.hold,1))} · ${SIM.waiter} confirmó. El lugar se reasignó desde la lista de espera.`); }
     else { say('2',true,tm(addH(dl.hold,1))); s.wait=s.wait.filter(w=>w!==SIM.waiter); SIM.phase=4; SIM.ended=true;
@@ -687,8 +698,8 @@ function renderSim(){
   else if(ph===2 && SIM.pendingWait) ctrl=`<button class="btn" id="simwait">Avanzar a ${fmt(dl.hold)} (aviso a la lista de espera)</button>`;
   else if(ph===3) ctrl=`<span class="small muted">${esc(SIM.waiter)} puede responder en el celular, o:</span> <button class="btn warn" id="simadv">Dejar pasar las 5 h sin responder</button>`;
   const canReply = !SIM.ended && (ph===1||ph===3);
-  el.innerHTML=`<div class="row" style="justify-content:space-between"><div><h2>Simulador de confirmación</h2>
-    <div class="muted small">${dayLabel(r.date)} · ${turnoLabel(TURNOS[r.ti])} · ${esc(PRACT[r.prac].name)} · solo ilustrativo, no modifica tus reservas</div></div>
+  el.innerHTML=`<div class="row" style="justify-content:space-between"><div><h2>Simulador de plazos y lista de espera</h2>
+    <div class="muted small">${dayLabel(r.date)} · ${turnoLabel(TURNOS[r.ti])} · ${esc(PRACT[r.prac].name)} · solo ilustrativo, no modifica tus reservas. Está en formato de chat, pero los avisos reales llegan por correo y se confirman desde “Mis turnos”</div></div>
     <button class="btn sec" id="simclose">Cerrar</button></div>
     <div class="sim"><div class="phone"><div class="screen">
       <div class="wahead"><div class="av">🧪</div><div><b>Labo Abierto UNPILAR</b><div style="font-size:11px;opacity:.8">Mensajes a ${esc(SIM.who)}</div></div></div>
@@ -698,7 +709,7 @@ function renderSim(){
     <div>
       <div class="tl">
         <div class="tli ${mark(0)}"><div class="h">Reserva hecha</div></div>
-        <div class="tli ${mark(1)}"><div class="h">${fmt(dl.remind)} · 24 h antes</div><div class="small muted">Recordatorio por WhatsApp. Si cancela, el lugar vuelve a la turnera en el momento.</div></div>
+        <div class="tli ${mark(1)}"><div class="h">${fmt(dl.remind)} · 24 h antes</div><div class="small muted">Recordatorio por correo. Si cancela, el lugar vuelve a la turnera en el momento.</div></div>
         <div class="tli ${mark(2)}"><div class="h">${fmt(dl.hold)} · ${TURNOS[r.ti].ini<=10?'20:00 del día anterior':'8 h antes'}</div><div class="small muted">Vence el plazo de quien reservó. Sin respuesta, se libera solo y se avisa a la lista de espera.</div></div>
         <div class="tli ${mark(3)}"><div class="h">${fmt(dl.wait)} · 5 h después</div><div class="small muted">Vence el plazo de la lista de espera. Lo que no se confirmó queda libre para cualquiera.</div></div>
         <div class="tli"><div class="h">${fmt(dl.start)} · Inicio del turno</div></div>
@@ -717,14 +728,14 @@ function renderSim(){
 
 /* ===================== NORMAS ===================== */
 function renderNormas(){
-  document.getElementById('normcards').innerHTML = Object.values(PRACT).map(p=>`<div class="card">
+  document.getElementById('normcards').innerHTML = Object.values(PRACT).filter(p=>p.activa).map(p=>`<div class="card">
     <h3>${esc(p.name)}</h3>
     <div>${p.areas.map(a=>`<span class="tag">${esc(areaName(a))}</span>`).join('')}<span class="tag" style="background:var(--accent2);color:var(--warn)">1 turno · 2 h</span></div>
     <div class="small" style="margin-top:6px"><b>Equipamiento:</b> ${esc(p.equipo)}</div>
     <div class="small"><b>Protección:</b> ${esc(p.epp)}</div>
     <ul class="clean small">${p.prec.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`).join('') +
     `<div class="card"><h3>Para todas las prácticas</h3><ul class="clean small"><li>No comer, beber ni maquillarse en el laboratorio</li><li>Cabello recogido y calzado cerrado</li><li>Ubicar la salida de emergencia, el lavaojos y el matafuegos</li><li>La IA sirve para repasar, pero no reemplaza el protocolo ni las indicaciones docentes</li></ul></div>`;
-  document.getElementById('qprac').innerHTML=Object.entries(PRACT).map(([k,p])=>`<option value="${k}">${esc(p.name)}</option>`).join('');
+  document.getElementById('qprac').innerHTML=Object.entries(PRACT).filter(([k,p])=>p.activa).map(([k,p])=>`<option value="${k}">${esc(p.name)}</option>`).join('');
 }
 
 /* ===================== FORO ===================== */
@@ -762,15 +773,15 @@ function renderCuenta(){
   const activos=activeCount();
   el.innerHTML=`<div class="two">
     <div class="card"><h2>Mis datos</h2>
-      <p class="muted small" style="margin:0">Estos datos se usan para tus reservas y los avisos de WhatsApp.</p>
+      <p class="muted small" style="margin:0">Estos datos se usan para tus reservas y los avisos de tus turnos.</p>
       <form id="acctform">
         <label class="f" for="anombre">Nombre y apellido</label><input type="text" id="anombre" required maxlength="100" value="${esc(USER.name===USER.mail?'':USER.name)}" autocomplete="name">
         <label class="f" for="adni">DNI</label><input type="text" id="adni" required maxlength="20" inputmode="numeric" value="${esc(USER.dni)}" autocomplete="off">
-        <label class="f" for="aphone">Celular (WhatsApp)</label><input type="tel" id="aphone" required maxlength="30" value="${esc(USER.phone)}" autocomplete="tel">
+        <label class="f" for="aphone">Celular</label><input type="tel" id="aphone" required maxlength="30" value="${esc(USER.phone)}" autocomplete="tel">
         <label class="f">Correo</label><div class="small">${esc(USER.mail)}</div>
         <div class="small muted">El correo no se puede cambiar desde acá.</div>
         <label class="row small" style="margin-top:12px;align-items:flex-start;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="awa" ${USER.consent?'checked':''} style="margin-top:3px">
-        <span>Acepto recibir por WhatsApp los avisos de mis turnos. Si lo desmarcás, la próxima reserva te lo vuelve a pedir.</span></label>
+        <span>Acepto recibir por correo los avisos de mis turnos. Si lo desmarcás, la próxima reserva te lo vuelve a pedir.</span></label>
         <div id="accterr"></div>
         <button class="btn" style="margin-top:16px" type="submit">Guardar cambios</button>
       </form></div>
@@ -810,6 +821,156 @@ function renderCuenta(){
   };
 }
 
+/* ===================== REGLAS DE USO (desde la base) ===================== */
+const mdb = s => esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+function renderReglas(){
+  document.getElementById('reglaslist').innerHTML = REGLAS.map(r=>`<li>${mdb(r.texto)}</li>`).join('') || '<li class="muted">Todavía no hay reglas cargadas.</li>';
+}
+async function reloadReglas(){
+  const {data,error}=await sb.from('reglas_uso').select('*').order('orden');
+  if(error) throw error; REGLAS=data; renderReglas();
+}
+async function refreshCatalog(){
+  await loadCatalog(); renderNormas(); renderReglas();
+  slotsFor=null; Object.assign(W,{step:1,lab:null,area:null,prac:null,slot:null,result:null});
+  if(USER) renderWizard();
+}
+
+/* ===================== PANEL DOCENTE ===================== */
+let DTAB='practicas', DEDIT=null;
+const allAreas = () => LABS.flatMap(l=>l.areas.map(a=>({id:a.id,name:a.name,lab:l.name})));
+function dflash(msg,kind){
+  const b=document.getElementById('dmsg'); if(!b) return;
+  b.innerHTML=`<div class="notice ${kind||'bad'}" style="margin-top:0">${esc(msg)}</div>`;
+  b.scrollIntoView({block:'nearest',behavior:'smooth'});
+  clearTimeout(dflash.t); dflash.t=setTimeout(()=>{ const x=document.getElementById('dmsg'); if(x) x.innerHTML=''; },7000);
+}
+// ejecuta una llamada a la base; si sale bien refresca la pantalla y avisa
+async function dcall(promise, okMsg, after){
+  let res; try{ res=await promise; }catch(e){ dflash('Sin conexión. Probá de nuevo.'); return false; }
+  if(res.error){ dflash(errMsg(res.error)); return false; }
+  if(after) await after();
+  dflash(okMsg,'ok'); return true;
+}
+async function renderDocente(){
+  const box=document.getElementById('docentebox');
+  if(!(USER&&USER.docente)){ box.innerHTML='<div class="notice info">Esta sección es solo para el equipo docente.</div>'; return; }
+  let pend=0; try{ const {data}=await sb.from('foro_hilos').select('id').is('respuesta',null); pend=(data||[]).length; }catch(e){}
+  const tabs=[['practicas','Prácticas'],['reglas','Reglas de uso'],['foro','Foro'+(pend?` (${pend} sin responder)`:'')],['docentes','Docentes']];
+  box.innerHTML=`<div class="card"><h2>Panel docente</h2>
+    <p class="muted small" style="margin:0">Lo que cargues acá lo ven los estudiantes enseguida.</p>
+    <div class="seg">${tabs.map(([k,n])=>`<button data-dt="${k}" class="${DTAB===k?'on':''}">${n}</button>`).join('')}</div>
+    <div id="dmsg"></div><div id="dbody"></div></div>`;
+  box.querySelectorAll('[data-dt]').forEach(b=>b.onclick=()=>{DTAB=b.dataset.dt;DEDIT=null;renderDocente();});
+  await ({practicas:dPracticas,reglas:dReglas,foro:dForo,docentes:dDocentes})[DTAB]();
+}
+
+/* --- Prácticas --- */
+function dPracticas(){
+  const body=document.getElementById('dbody');
+  if(DEDIT) return dPracticaForm(body);
+  body.innerHTML=`<div class="row" style="justify-content:space-between;margin-bottom:12px"><h3 style="margin:0">Prácticas del laboratorio</h3><button class="btn" id="pnew">+ Nueva práctica</button></div>
+    <div class="list">${Object.entries(PRACT).map(([k,p])=>`<div class="dcard"><div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div><b>${esc(p.name)}</b> ${p.activa?'':'<span class="pill p-warn">Oculta</span>'}
+      <div style="margin-top:4px">${p.areas.map(a=>`<span class="tag">${esc(areaName(a))}</span>`).join('')}</div>
+      <div class="small muted">${esc(p.equipo)||'Sin equipamiento cargado'} · ${p.prec.length} ${p.prec.length===1?'precaución':'precauciones'}</div></div>
+      <button class="btn sec" data-pedit="${esc(k)}">Editar</button></div></div>`).join('')||'<p class="muted">Todavía no hay prácticas. Creá la primera.</p>'}</div>`;
+  document.getElementById('pnew').onclick=()=>{DEDIT='new';renderDocente();};
+  body.querySelectorAll('[data-pedit]').forEach(b=>b.onclick=()=>{DEDIT=b.dataset.pedit;renderDocente();});
+}
+function dPracticaForm(body){
+  const nueva=DEDIT==='new', p=nueva?{name:'',equipo:'',epp:'',prec:[],areas:[],activa:true}:PRACT[DEDIT];
+  if(!p){ DEDIT=null; return dPracticas(); }
+  const grupos=LABS.filter(l=>l.areas.length).map(l=>`<div class="small muted" style="margin-top:6px">${esc(l.name)}</div>`+
+    l.areas.map(a=>`<label class="chk"><input type="checkbox" data-parea="${esc(a.id)}" ${p.areas.includes(a.id)?'checked':''}> ${esc(a.name)}</label>`).join('')).join('');
+  body.innerHTML=`<h3>${nueva?'Nueva práctica':'Editar práctica'}</h3>
+    <label class="f" for="pnom">Nombre de la práctica</label><input type="text" id="pnom" maxlength="80" value="${esc(p.name)}" placeholder="Ej.: Preparación de soluciones">
+    <label class="f">¿Para qué áreas (carreras) es?</label>${grupos}
+    <label class="f" for="pequipo">Equipamiento</label><input type="text" id="pequipo" maxlength="300" value="${esc(p.equipo)}" placeholder="Ej.: Balanza, material de vidrio">
+    <label class="f" for="pepp">Protección personal (EPP)</label><input type="text" id="pepp" maxlength="300" value="${esc(p.epp)}" placeholder="Ej.: Guardapolvo, antiparras y guantes">
+    <label class="f" for="pprec">Precauciones (una por línea)</label><textarea id="pprec" rows="6" placeholder="Ej.:&#10;Rotular cada recipiente&#10;Limpiar la balanza después de usarla">${esc(p.prec.join('\n'))}</textarea>
+    <label class="chk" style="margin-top:12px"><input type="checkbox" id="pact" ${p.activa?'checked':''}> <span><b>Visible para reservar.</b> Si la desmarcás, deja de aparecer en la turnera y en las normas; las reservas que ya existen se mantienen.</span></label>
+    <div class="row" style="margin-top:16px"><button class="btn" id="psave">Guardar</button><button class="btn sec" id="pcancel">Cancelar</button></div>`;
+  document.getElementById('pcancel').onclick=()=>{DEDIT=null;renderDocente();};
+  document.getElementById('psave').onclick=async e=>{
+    const btn=e.target; btn.disabled=true;
+    const areas=[...body.querySelectorAll('[data-parea]:checked')].map(x=>x.dataset.parea);
+    const ok=await dcall(sb.rpc('guardar_practica',{
+      p_id:nueva?null:DEDIT, p_nombre:document.getElementById('pnom').value, p_equipo:document.getElementById('pequipo').value,
+      p_epp:document.getElementById('pepp').value, p_precauciones:document.getElementById('pprec').value.split('\n'),
+      p_areas:areas, p_activa:document.getElementById('pact').checked}),
+      'Práctica guardada.', async()=>{ await refreshCatalog(); DEDIT=null; await renderDocente(); });
+    if(!ok) btn.disabled=false;
+  };
+}
+
+/* --- Reglas de uso --- */
+function dReglas(){
+  const body=document.getElementById('dbody');
+  body.innerHTML=`<div class="notice info small" style="margin-top:0">Escribí cada regla como una frase. Para resaltar algo en negrita, ponelo entre dos asteriscos: **así**.
+    Ojo: esto es el texto que leen los estudiantes. Los límites reales (12 lugares por turno, máximo 2 turnos activos, plazos de confirmación) los aplica el sistema; si cambian, hay que ajustarlos también en la base de datos.</div>
+    <div class="list" style="margin-top:12px">${REGLAS.map((r,i)=>`<div class="dcard"><textarea data-rtxt="${r.id}" rows="3" maxlength="600">${esc(r.texto)}</textarea>
+      <div class="row" style="margin-top:8px"><button class="btn" data-rsave="${r.id}">Guardar</button>
+      <button class="btn sec" data-rmove="${r.id}" data-dir="-1" ${i===0?'disabled':''} title="Subir">↑</button>
+      <button class="btn sec" data-rmove="${r.id}" data-dir="1" ${i===REGLAS.length-1?'disabled':''} title="Bajar">↓</button>
+      <button class="btn sec" data-rdel="${r.id}" style="margin-left:auto">Eliminar</button></div></div>`).join('')}</div>
+    <div class="dcard" style="margin-top:12px"><label class="f" style="margin-top:0" for="rnew">Nueva regla</label><textarea id="rnew" rows="2" maxlength="600" placeholder="Ej.: Llegá 10 minutos antes del turno."></textarea>
+    <button class="btn" id="radd" style="margin-top:8px">Agregar regla</button></div>`;
+  const after=async()=>{ await reloadReglas(); await renderDocente(); };
+  body.querySelectorAll('[data-rsave]').forEach(b=>b.onclick=()=>{ b.disabled=true;
+    dcall(sb.rpc('guardar_regla',{p_id:+b.dataset.rsave,p_texto:body.querySelector(`[data-rtxt="${b.dataset.rsave}"]`).value}),'Regla guardada.',after).then(ok=>{ if(!ok) b.disabled=false; }); });
+  body.querySelectorAll('[data-rmove]').forEach(b=>b.onclick=()=>{ b.disabled=true;
+    dcall(sb.rpc('mover_regla',{p_id:+b.dataset.rmove,p_dir:+b.dataset.dir}),'Orden actualizado.',after).then(ok=>{ if(!ok) b.disabled=false; }); });
+  body.querySelectorAll('[data-rdel]').forEach(b=>b.onclick=()=>{
+    if(!confirm('¿Eliminar esta regla? Los estudiantes dejan de verla.')) return; b.disabled=true;
+    dcall(sb.rpc('eliminar_regla',{p_id:+b.dataset.rdel}),'Regla eliminada.',after).then(ok=>{ if(!ok) b.disabled=false; }); });
+  document.getElementById('radd').onclick=e=>{ const b=e.target; b.disabled=true;
+    dcall(sb.rpc('guardar_regla',{p_id:null,p_texto:document.getElementById('rnew').value}),'Regla agregada.',after).then(ok=>{ if(!ok) b.disabled=false; }); };
+}
+
+/* --- Foro --- */
+async function dForo(){
+  const body=document.getElementById('dbody');
+  body.innerHTML='<p class="muted">Cargando…</p>';
+  const {data,error}=await sb.from('foro_hilos').select('id,practica_id,pregunta,respuesta,respondido_por,created_at').order('created_at',{ascending:false});
+  if(error){ body.innerHTML=`<div class="notice bad">No se pudo cargar el foro: ${esc(error.message)}</div>`; return; }
+  const sin=data.filter(t=>!t.respuesta), con=data.filter(t=>t.respuesta);
+  const card=t=>`<div class="thread"><span class="tag">${esc((PRACT[t.practica_id]||{}).name||t.practica_id)}</span><span class="small muted">${new Date(t.created_at).toLocaleDateString('es-AR')}</span>
+    <div style="font-weight:600;margin-top:4px">${esc(t.pregunta)}</div>
+    <textarea data-hans="${t.id}" rows="3" maxlength="2000" placeholder="Escribí tu respuesta…" style="margin-top:8px">${esc(t.respuesta||'')}</textarea>
+    <div class="row" style="margin-top:8px"><button class="btn" data-hsave="${t.id}">${t.respuesta?'Guardar cambios':'Responder'}</button>
+    ${t.respuesta?`<button class="btn sec" data-hdel="${t.id}">Quitar respuesta</button><span class="small muted">${esc(t.respondido_por||'')}</span>`:''}</div></div>`;
+  body.innerHTML=`<h3>Sin responder (${sin.length})</h3><div class="list">${sin.map(card).join('')||'<p class="muted">No hay preguntas pendientes. ✔</p>'}</div>
+    <h3 style="margin-top:22px">Ya respondidas (${con.length})</h3><div class="list">${con.map(card).join('')||'<p class="muted">Todavía no respondiste ninguna.</p>'}</div>`;
+  body.querySelectorAll('[data-hsave]').forEach(b=>b.onclick=()=>{
+    const txt=body.querySelector(`[data-hans="${b.dataset.hsave}"]`).value;
+    if(!txt.trim()){ dflash('Escribí una respuesta antes de enviarla.'); return; } b.disabled=true;
+    dcall(sb.rpc('responder_hilo',{p_id:+b.dataset.hsave,p_respuesta:txt}),'Respuesta publicada.',renderDocente).then(ok=>{ if(!ok) b.disabled=false; }); });
+  body.querySelectorAll('[data-hdel]').forEach(b=>b.onclick=()=>{
+    if(!confirm('¿Quitar esta respuesta? La pregunta vuelve a quedar sin responder.')) return; b.disabled=true;
+    dcall(sb.rpc('responder_hilo',{p_id:+b.dataset.hdel,p_respuesta:''}),'Respuesta quitada.',renderDocente).then(ok=>{ if(!ok) b.disabled=false; }); });
+}
+
+/* --- Docentes --- */
+async function dDocentes(){
+  const body=document.getElementById('dbody');
+  body.innerHTML='<p class="muted">Cargando…</p>';
+  const {data,error}=await sb.rpc('listar_docentes');
+  if(error){ body.innerHTML=`<div class="notice bad">${esc(error.message)}</div>`; return; }
+  body.innerHTML=`<h3>Equipo docente con acceso a este panel</h3>
+    <div class="list">${data.map(d=>`<div class="dcard row" style="justify-content:space-between"><div><b>${esc(d.nombre||'(sin nombre)')}</b><div class="small muted">${esc(d.email)}</div></div>
+    ${d.docente_id===USER.id?'<span class="pill p-ok">Vos</span>':`<button class="btn sec" data-qd="${d.docente_id}">Quitar acceso</button>`}</div>`).join('')}</div>
+    <div class="dcard" style="margin-top:14px"><label class="f" style="margin-top:0" for="demail">Dar acceso a otra persona</label>
+    <input type="text" id="demail" inputmode="email" autocapitalize="off" placeholder="correo con el que se registró en la turnera">
+    <p class="small muted" style="margin:6px 0 0">La persona tiene que haberse registrado antes en la turnera con ese correo.</p>
+    <button class="btn" id="dadd" style="margin-top:10px">Agregar docente</button></div>`;
+  document.getElementById('dadd').onclick=e=>{ const b=e.target; b.disabled=true;
+    dcall(sb.rpc('agregar_docente',{p_email:document.getElementById('demail').value}),'Listo: esa persona ya tiene acceso al panel.',renderDocente).then(ok=>{ if(!ok) b.disabled=false; }); };
+  body.querySelectorAll('[data-qd]').forEach(b=>b.onclick=()=>{
+    if(!confirm('¿Quitar el acceso a esta persona?')) return; b.disabled=true;
+    dcall(sb.rpc('quitar_docente',{p_user_id:b.dataset.qd}),'Acceso quitado.',renderDocente).then(ok=>{ if(!ok) b.disabled=false; }); });
+}
+
 /* ===================== QR ===================== */
 let qrDone=false;
 function renderQR(){
@@ -825,7 +986,7 @@ async function boot(){
   w.innerHTML='<p class="muted">Cargando…</p>';
   try{ await loadCatalog(); }
   catch(e){ w.innerHTML=`<div class="notice bad">No se pudo conectar con la base de datos: ${esc(e.message||'')}</div>`; return; }
-  renderNormas();
+  renderNormas(); renderReglas();
   const n=new Date(); if(n.getDay()===0||(n.getDay()===6&&n.getHours()>=15)) W.week=1;
   buildDays(W.week);
   sb.auth.onAuthStateChange((ev,session)=>{

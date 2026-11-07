@@ -1,4 +1,4 @@
--- Programa la Edge Function `enviar-avisos` cada 10 minutos (NO aplicado todavía).
+-- Programa la Edge Function `enviar-avisos` cada 10 minutos (YA APLICADO en el proyecto; queda como registro).
 -- La función procesa los plazos (libera turnos sin confirmar, ofrece lugares de la lista de espera,
 -- genera recordatorios 24 h antes) y envía los avisos por correo.
 --
@@ -15,7 +15,8 @@ select cron.schedule(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'enviar_avisos_key')
     ),
-    body    := '{}'::jsonb
+    body    := '{}'::jsonb,
+    timeout_milliseconds := 30000   -- el arranque en frío de la función puede pasar los 5 s por defecto
   );
   $$
 );
