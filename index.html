@@ -340,11 +340,11 @@ function updatePill(){
 }
 async function loadMine(){
   if(!USER){ MY=[]; return; }
-  const {data,error}=await sb.from('reservas').select('id,fecha,turno_id,practica_id,area_id,estado')
+  const {data,error}=await sb.from('reservas').select('id,fecha,turno_id,practica_id,area_id,estado,confirmar_hasta')
     .order('fecha',{ascending:true}).order('turno_id',{ascending:true});
   if(error){ console.error(error); return; }
   MY=data.map(r=>({id:r.id, fecha:r.fecha, date:parseISO(r.fecha), ti:TURNOS.findIndex(t=>t.id===r.turno_id),
-    prac:r.practica_id, area:r.area_id, lab:(LABS.find(l=>l.areas.some(a=>a.id===r.area_id))||{}).id, n:1, status:r.estado, ocupados:0}));
+    prac:r.practica_id, area:r.area_id, lab:(LABS.find(l=>l.areas.some(a=>a.id===r.area_id))||{}).id, n:1, status:r.estado, ocupados:0, hasta:r.confirmar_hasta?new Date(r.confirmar_hasta):null}));
   if(MY.length){
     const {data:c}=await sb.rpc('cupos_rango',{p_desde:MY[0].fecha,p_hasta:MY[MY.length-1].fecha});
     MY.forEach(r=>{ const x=(c||[]).find(z=>z.fecha===r.fecha&&z.turno_id===TURNOS[r.ti].id); r.ocupados=x?x.ocupados:0; });
@@ -601,7 +601,7 @@ function renderMine(){
     const live=['reservado','confirmado','espera'].includes(r.status)&&future;
     return `<div class="res"><div style="flex:1;min-width:220px"><div class="when">${dayLabel(r.date)} · ${turnoLabel(t)}</div>
       <div class="small muted">${esc(PRACT[r.prac].name)}${r.status==='espera'?'':' · '+libres(CAP-r.ocupados)+' en el turno'}</div>
-      ${r.status==='reservado'&&future?`<div class="small muted">Recordatorio: ${fmt(dl.remind)} · Plazo para responder: ${fmt(dl.hold)}</div>`:''}</div>
+      ${r.status==='reservado'&&future?`<div class="small muted">${dl.remind>now?'Recordatorio: '+fmt(dl.remind)+' · ':''}Confirmá antes de: <b>${fmt(r.hasta||dl.hold)}</b> o el lugar se libera</div>`:''}</div>
       <span class="pill ${st[1]}">${st[0]}</span>
       ${r.status==='reservado'&&future?`<button class="btn" data-conf="${r.id}">Confirmar asistencia</button><button class="btn sec" data-sim="${r.id}">Simular avisos</button>`:''}
       ${live?`<button class="btn sec" data-canc="${r.id}">Cancelar</button>`:''}</div>`;
