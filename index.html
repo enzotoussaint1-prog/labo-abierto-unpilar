@@ -137,6 +137,7 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
     <button data-v="normas">Normas por práctica</button>
     <button data-v="reglas">Reglas de uso</button>
     <button data-v="foro">Foro de Laboratorio</button>
+    <button data-v="cuenta">Mi cuenta</button>
     <button data-v="qr">Cartel QR</button>
   </nav>
 </header>
@@ -214,6 +215,11 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
         <p class="small muted">Acceden todas las personas que reservaron al menos un turno, sin importar comisión ni carrera. Las mejores respuestas pasan al Banco de dudas.</p>
       </div>
     </div>
+  </section>
+
+  <!-- MI CUENTA -->
+  <section id="v-cuenta" class="hidden">
+    <div id="cuentabox"></div>
   </section>
 
   <!-- QR -->
@@ -304,9 +310,10 @@ document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>show(b.datase
 function show(v){
   CUR=v;
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
-  ['reservar','mis','normas','reglas','foro','qr'].forEach(x=>document.getElementById('v-'+x).classList.toggle('hidden',x!==v));
+  ['reservar','mis','normas','reglas','foro','cuenta','qr'].forEach(x=>document.getElementById('v-'+x).classList.toggle('hidden',x!==v));
   if(v==='mis'){ renderMine(); loadMine().then(renderMine); }
   if(v==='foro') renderForo();
+  if(v==='cuenta') renderCuenta();
   if(v==='qr') renderQR();
   window.scrollTo(0,0);
 }
@@ -349,16 +356,18 @@ function renderSteps(){
   document.getElementById('steps').innerHTML = STEPS.map((s,i)=>
     `<div class="step ${i+1===W.step?'on':(i+1<W.step?'done':'')}"><b>${i+1<W.step?'✓':i+1}</b>${s}</div>`).join('');
 }
+let FLASH='';
 function renderLogin(msg){
+  if(!msg && FLASH){ msg=FLASH; FLASH=''; }
   const su=AUTHMODE==='signup';
   document.getElementById('steps').innerHTML='';
   document.getElementById('wizard').innerHTML=`<div class="two"><div><h2>${su?'Creá tu cuenta':'Ingresá con tu cuenta'}</h2>
     <p class="muted small">La turnera es individual: cada estudiante entra con sus propios datos y toma su turno. Los avisos de confirmación llegan a tu WhatsApp.</p>
     ${msg?`<div class="notice ok small">${esc(msg)}</div>`:''}
     <form id="login">
-      ${su?`<label class="f" for="lname">Nombre y apellido</label><input type="text" id="lname" required autocomplete="name">
-      <label class="f" for="ldni">DNI</label><input type="text" id="ldni" required inputmode="numeric" autocomplete="off">
-      <label class="f" for="lphone">Celular (WhatsApp)</label><input type="tel" id="lphone" required autocomplete="tel">`:''}
+      ${su?`<label class="f" for="lname">Nombre y apellido</label><input type="text" id="lname" required maxlength="100" autocomplete="name">
+      <label class="f" for="ldni">DNI</label><input type="text" id="ldni" required maxlength="20" inputmode="numeric" autocomplete="off">
+      <label class="f" for="lphone">Celular (WhatsApp)</label><input type="tel" id="lphone" required maxlength="30" autocomplete="tel">`:''}
       <label class="f" for="lmail">Correo electrónico</label><input type="email" id="lmail" required autocomplete="email" placeholder="tu@correo.com">
       <label class="f" for="lpass">Contraseña</label><input type="password" id="lpass" required minlength="${su?8:6}" autocomplete="${su?'new-password':'current-password'}">${su?'<div class="small muted">Mínimo 8 caracteres.</div>':''}
       ${su?`<label class="row small" style="margin-top:12px;align-items:flex-start;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="lconsent" style="margin-top:3px">
@@ -745,6 +754,61 @@ document.getElementById('qform').onsubmit=async e=>{
   if(error){ alert(errMsg(error)); btn.disabled=false; return; }
   t.value=''; renderForo();
 };
+
+/* ===================== MI CUENTA ===================== */
+function renderCuenta(){
+  const el=document.getElementById('cuentabox');
+  if(!USER){ el.innerHTML='<div class="notice info">Ingresá desde “Reservar turno” para ver tu cuenta.</div>'; return; }
+  const activos=activeCount();
+  el.innerHTML=`<div class="two">
+    <div class="card"><h2>Mis datos</h2>
+      <p class="muted small" style="margin:0">Estos datos se usan para tus reservas y los avisos de WhatsApp.</p>
+      <form id="acctform">
+        <label class="f" for="anombre">Nombre y apellido</label><input type="text" id="anombre" required maxlength="100" value="${esc(USER.name===USER.mail?'':USER.name)}" autocomplete="name">
+        <label class="f" for="adni">DNI</label><input type="text" id="adni" required maxlength="20" inputmode="numeric" value="${esc(USER.dni)}" autocomplete="off">
+        <label class="f" for="aphone">Celular (WhatsApp)</label><input type="tel" id="aphone" required maxlength="30" value="${esc(USER.phone)}" autocomplete="tel">
+        <label class="f">Correo</label><div class="small">${esc(USER.mail)}</div>
+        <div class="small muted">El correo no se puede cambiar desde acá.</div>
+        <label class="row small" style="margin-top:12px;align-items:flex-start;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="awa" ${USER.consent?'checked':''} style="margin-top:3px">
+        <span>Acepto recibir por WhatsApp los avisos de mis turnos. Si lo desmarcás, la próxima reserva te lo vuelve a pedir.</span></label>
+        <div id="accterr"></div>
+        <button class="btn" style="margin-top:16px" type="submit">Guardar cambios</button>
+      </form></div>
+    <div class="card" style="border-color:var(--bad);align-self:start"><h2 style="color:var(--bad)">Eliminar mi cuenta</h2>
+      <p class="small" style="margin:6px 0">Se borran tu perfil y todas tus reservas${activos?` (tenés <b>${activos}</b> ${activos===1?'turno activo, que se cancela':'turnos activos, que se cancelan'} y los lugares quedan libres)`:''}. Tus preguntas del foro quedan publicadas, pero sin tu nombre. <b>No se puede deshacer.</b></p>
+      <label class="f" for="delconfirm">Para confirmar, escribí ELIMINAR</label>
+      <input type="text" id="delconfirm" autocomplete="off">
+      <div id="delerr"></div>
+      <button class="btn bad" id="delbtn" style="margin-top:12px" disabled>Eliminar mi cuenta definitivamente</button>
+    </div></div>`;
+  const note=(id,cls,m)=>{ document.getElementById(id).innerHTML=`<div class="notice ${cls} small">${esc(m)}</div>`; };
+  document.getElementById('acctform').onsubmit=async e=>{
+    e.preventDefault();
+    const nombre=document.getElementById('anombre').value.trim(), dni=document.getElementById('adni').value.replace(/\D/g,''),
+          celular=document.getElementById('aphone').value.trim(), acepta=document.getElementById('awa').checked;
+    if(nombre.length<3) return note('accterr','bad','Escribí tu nombre y apellido.');
+    if(dni.length<6||dni.length>12) return note('accterr','bad','Revisá tu DNI: tiene que tener solo números.');
+    if(celular.replace(/\D/g,'').length<8) return note('accterr','bad','Revisá tu número de celular.');
+    const btn=e.target.querySelector('button[type=submit]'); btn.disabled=true;
+    const {data,error}=await sb.from('perfiles').update({nombre,dni,celular,acepta_whatsapp:acepta}).eq('id',USER.id).select('id');
+    btn.disabled=false;
+    if(error||!data||!data.length) return note('accterr','bad',error?errMsg(error):'No se pudieron guardar los cambios.');
+    const {data:{session}}=await sb.auth.getSession(); await loadUser(session);
+    renderCuenta(); note('accterr','ok','Listo, guardamos tus datos.');
+    setTimeout(()=>{ const x=document.getElementById('accterr'); if(x) x.innerHTML=''; },5000);
+  };
+  const inp=document.getElementById('delconfirm'), del=document.getElementById('delbtn');
+  inp.oninput=()=>{ del.disabled=inp.value.trim().toUpperCase()!=='ELIMINAR'; };
+  del.onclick=async()=>{
+    del.disabled=true; del.textContent='Eliminando…';
+    const {error}=await sb.rpc('eliminar_mi_cuenta');
+    if(error){ del.textContent='Eliminar mi cuenta definitivamente'; del.disabled=false; return note('delerr','bad',errMsg(error)); }
+    FLASH='Tu cuenta fue eliminada. Si querés volver a usar la turnera, podés crear una nueva.';
+    AUTHMODE='login';
+    await sb.auth.signOut({scope:'local'});
+    CUR='reservar'; show('reservar');
+  };
+}
 
 /* ===================== QR ===================== */
 let qrDone=false;
