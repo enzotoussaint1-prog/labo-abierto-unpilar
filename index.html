@@ -294,6 +294,7 @@ async function loadCatalog(){
     areas:a.data.filter(y=>y.lab_id===x.id).map(y=>({id:y.id,name:y.nombre}))}));
   PRACT = {};
   p.data.forEach(x=>PRACT[x.id]={activa:x.activa!==false, name:x.nombre, equipo:x.equipo||'', epp:x.epp||'', prec:x.precauciones||[],
+    pdfPath:x.pdf_path||'', pdfNombre:x.pdf_nombre||'', vidPath:x.video_path||'', vidUrl:x.video_url||'',
     areas:pa.data.filter(y=>y.practica_id===x.id).map(y=>y.area_id)});
   TURNOS = t.data.map(x=>({id:x.id,f:x.franja,ini:x.hora_ini,fin:x.hora_fin}));
   REGLAS = rg.data;
@@ -529,7 +530,7 @@ function renderWizard(){
     const isWait = W.result==='espera', isConf = W.result==='confirmado';
     h=`<div class="notice ok" style="margin-top:0"><b>${isWait?'Te anotaste en la lista de espera.':(isConf?'¡Turno reservado y confirmado!':'¡Turno reservado!')}</b> ${dayLabel(DAYS[di])} · ${turnoLabel(t)} · ${esc(p.name)}</div>
       <div class="two" style="margin-top:16px"><div><h3>Tené en cuenta para ese día</h3>
-      <ul class="clean"><li><b>Equipo de protección:</b> ${esc(p.epp)}</li>${p.prec.map(x=>`<li>${esc(x)}</li>`).join('')}<li>Acceso al Foro de Laboratorio</li></ul></div>
+      <ul class="clean"><li><b>Equipo de protección:</b> ${esc(p.epp)}</li>${p.prec.map(x=>`<li>${esc(x)}</li>`).join('')}<li>Acceso al Foro de Laboratorio</li></ul>${materialHTML(p)}</div>
       <div><h3>Qué sigue</h3>
       ${isWait?'<p class="small">Si alguien cancela o no confirma, te avisamos unas 8 h antes del turno y tenés 5 h para quedarte con el lugar.</p>':
         (isConf?'<p class="small">Como faltan menos de 24 h para el turno, quedó confirmado al reservar.</p>':
@@ -744,6 +745,18 @@ function renderSim(){
   on('simreset',()=>{document.getElementById('simcard').classList.add('hidden'); window.scrollTo(0,0);});
 }
 
+/* ===================== MATERIAL DE APOYO ===================== */
+const BUCKET='practicas-material';
+const matURL = path => sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+function materialHTML(p){
+  const a=(href,txt)=>`<a href="${esc(href)}" target="_blank" rel="noopener" class="btn sec" style="display:inline-block;text-decoration:none;padding:6px 12px;font-size:13px;margin:4px 6px 0 0">${txt}</a>`;
+  let h='';
+  if(p.pdfPath) h+=a(matURL(p.pdfPath),'📄 '+esc(p.pdfNombre||'Guía en PDF'));
+  if(p.vidUrl) h+=a(p.vidUrl,'▶ Ver video');
+  const v=p.vidPath?`<video controls preload="none" playsinline src="${esc(matURL(p.vidPath))}" style="width:100%;max-width:520px;border-radius:10px;margin-top:8px;background:#000"></video>`:'';
+  return (h||v)?`<div style="margin-top:8px">${h}${v}</div>`:'';
+}
+
 /* ===================== NORMAS ===================== */
 function renderNormas(){
   document.getElementById('normcards').innerHTML = Object.values(PRACT).filter(p=>p.activa).map(p=>`<div class="card">
@@ -751,7 +764,7 @@ function renderNormas(){
     <div>${p.areas.map(a=>`<span class="tag">${esc(areaName(a))}</span>`).join('')}<span class="tag" style="background:var(--accent2);color:var(--warn)">1 turno · 2 h</span></div>
     <div class="small" style="margin-top:6px"><b>Equipamiento:</b> ${esc(p.equipo)}</div>
     <div class="small"><b>Protección:</b> ${esc(p.epp)}</div>
-    <ul class="clean small">${p.prec.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`).join('') +
+    <ul class="clean small">${p.prec.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${materialHTML(p)}</div>`).join('') +
     `<div class="card"><h3>Para todas las prácticas</h3><ul class="clean small"><li>No comer, beber ni maquillarse en el laboratorio</li><li>Cabello recogido y calzado cerrado</li><li>Ubicar la salida de emergencia, el lavaojos y el matafuegos</li><li>La IA sirve para repasar, pero no reemplaza el protocolo ni las indicaciones docentes</li></ul></div>`;
   document.getElementById('qprac').innerHTML=Object.entries(PRACT).filter(([k,p])=>p.activa).map(([k,p])=>`<option value="${k}">${esc(p.name)}</option>`).join('');
 }
@@ -971,6 +984,7 @@ function dPracticaForm(body){
     <label class="chk" style="margin-top:12px"><input type="checkbox" id="pact" ${p.activa?'checked':''}> <span><b>Visible para reservar.</b> Si la desmarcás, deja de aparecer en la turnera y en las normas; las reservas que ya existen se mantienen.</span></label>
     <div class="row" style="margin-top:16px"><button class="btn" id="psave">Guardar</button><button class="btn sec" id="pcancel">Cancelar</button></div>`;
   document.getElementById('pcancel').onclick=()=>{DEDIT=null;renderDocente();};
+  if(!nueva) dMaterial(body,p);
   document.getElementById('psave').onclick=async e=>{
     const btn=e.target; btn.disabled=true;
     const areas=[...body.querySelectorAll('[data-parea]:checked')].map(x=>x.dataset.parea);
@@ -980,6 +994,50 @@ function dPracticaForm(body){
       p_areas:areas, p_activa:document.getElementById('pact').checked}),
       'Práctica guardada.', async()=>{ await refreshCatalog(); DEDIT=null; await renderDocente(); });
     if(!ok) btn.disabled=false;
+  };
+}
+
+/* --- Material de apoyo (PDF / video) de una práctica --- */
+function dMaterial(body,p){
+  const box=document.createElement('div'); box.className='dcard'; box.style.marginTop='20px';
+  box.innerHTML=`<h3 style="margin-top:0">Material de apoyo (opcional)</h3>
+    <div class="small muted">Subí una guía en PDF y/o un video explicativo. Los estudiantes lo ven en “Normas” y al reservar. Se guarda por separado: no hace falta tocar “Guardar” de arriba.</div>
+    ${p.pdfPath?`<div class="small" style="margin-top:10px">PDF actual: <a href="${esc(matURL(p.pdfPath))}" target="_blank" rel="noopener">${esc(p.pdfNombre||'ver PDF')}</a> <label class="chk"><input type="checkbox" id="mpdfdel"> Quitar</label></div>`:''}
+    <label class="f" for="mpdf">${p.pdfPath?'Reemplazar PDF':'Subir PDF'} (máx. 20 MB)</label><input type="file" id="mpdf" accept="application/pdf">
+    ${p.vidPath?`<div class="small" style="margin-top:10px">Video actual: <a href="${esc(matURL(p.vidPath))}" target="_blank" rel="noopener">ver video</a> <label class="chk"><input type="checkbox" id="mviddel"> Quitar</label></div>`:''}
+    <label class="f" for="mvid">${p.vidPath?'Reemplazar video':'Subir video'} (mp4, máx. 50 MB)</label><input type="file" id="mvid" accept="video/mp4,video/webm,video/quicktime">
+    <label class="f" for="murl">O pegá el link de un video (YouTube, Drive…)</label><input type="url" id="murl" maxlength="500" value="${esc(p.vidUrl)}" placeholder="https://...">
+    <div id="mstat" class="small muted" style="margin-top:8px"></div>
+    <div style="margin-top:12px"><button class="btn" id="msave">Guardar material</button></div>`;
+  body.appendChild(box);
+  const q=id=>box.querySelector('#'+id);
+  q('msave').onclick=async e=>{
+    const btn=e.target, pf=q('mpdf').files[0], vf=q('mvid').files[0], st=q('mstat');
+    if(pf && (pf.type!=='application/pdf' || pf.size>20*1048576)) return dflash('El PDF debe ser un archivo .pdf de hasta 20 MB.');
+    if(vf && (!/^video\/(mp4|webm|quicktime)$/.test(vf.type) || vf.size>50*1048576)) return dflash('El video debe ser mp4, webm o mov, de hasta 50 MB. Si pesa más, subilo a YouTube y pegá el link.');
+    btn.disabled=true;
+    const up=async(f,tipo)=>{
+      const ext=(f.name.split('.').pop()||'').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,5)||'bin';
+      const path=`${DEDIT}/${tipo}-${Date.now()}.${ext}`;
+      st.textContent='Subiendo '+(tipo==='pdf'?'el PDF':'el video')+'… no cierres la página.';
+      const {error}=await sb.storage.from(BUCKET).upload(path,f,{contentType:f.type});
+      if(error) throw error; return path;
+    };
+    const subidos=[], viejos=[];
+    try{
+      let pdfPath=p.pdfPath||null, pdfNombre=p.pdfNombre||null, vidPath=p.vidPath||null;
+      if(pf){ viejos.push(pdfPath); pdfPath=await up(pf,'pdf'); subidos.push(pdfPath); pdfNombre=pf.name; }
+      else if(q('mpdfdel')&&q('mpdfdel').checked){ viejos.push(pdfPath); pdfPath=null; pdfNombre=null; }
+      if(vf){ viejos.push(vidPath); vidPath=await up(vf,'video'); subidos.push(vidPath); }
+      else if(q('mviddel')&&q('mviddel').checked){ viejos.push(vidPath); vidPath=null; }
+      const {error}=await sb.rpc('guardar_material',{p_id:DEDIT,p_pdf_path:pdfPath,p_pdf_nombre:pdfNombre,p_video_path:vidPath,p_video_url:q('murl').value});
+      if(error) throw error;
+      const borrar=viejos.filter(Boolean); if(borrar.length) await sb.storage.from(BUCKET).remove(borrar);
+      await refreshCatalog(); await renderDocente(); dflash('Material guardado.','ok');
+    }catch(err){
+      if(subidos.length) await sb.storage.from(BUCKET).remove(subidos).catch(()=>{});
+      st.textContent=''; dflash(errMsg(err)||'No se pudo guardar el material.'); btn.disabled=false;
+    }
   };
 }
 
