@@ -394,6 +394,16 @@ function renderLogin(msg){
     <div class="notice info" style="align-self:start"><b>Cómo funciona</b><br>1. Ingresás con tus datos.<br>2. Elegís laboratorio, área (carrera) y práctica.<br>3. Tomás tu lugar en un turno de 2 h.<br>4. Un día antes te llega un correo para confirmar.</div></div>`;
   const fail=m=>{ document.getElementById('autherr').innerHTML=`<div class="notice bad small">${esc(m)}</div>`; document.querySelector('#login button[type=submit]').disabled=false; };
   document.getElementById('toggleauth').onclick=()=>{ AUTHMODE=su?'login':'signup'; renderLogin(); };
+  const notConfirmed=email=>{
+  document.getElementById('autherr').innerHTML='<div class="notice bad small">Todavía no confirmaste tu correo. Revisá tu bandeja y spam. <button type="button" id="resend" style="background:none;border:0;padding:0;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit">Reenviar correo de confirmación</button></div>';
+  document.querySelector('#login button[type=submit]').disabled=false;
+  document.getElementById('resend').onclick=async()=>{
+    const {error}=await sb.auth.resend({type:'signup',email,options:{emailRedirectTo:PAGE_URL}});
+    document.getElementById('autherr').innerHTML=error
+      ? `<div class="notice bad small">${esc(errMsg(error))}</div>`
+      : '<div class="notice ok small">Listo, te reenviamos el correo. Revisá también spam.</div>';
+  };
+};
   const forgot=document.getElementById('forgot');
   if(forgot) forgot.onclick=async()=>{
     const email=document.getElementById('lmail').value.trim();
