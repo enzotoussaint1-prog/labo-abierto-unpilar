@@ -427,8 +427,7 @@ function renderLogin(msg){
       if(!data.session){ AUTHMODE='login'; renderLogin('Te enviamos un correo para confirmar tu cuenta. Confirmala y después ingresá.'); }
     } else {
       const {error}=await sb.auth.signInWithPassword({email,password});
-      if(error) return fail(errMsg(error));
-    }
+      if(error){ if(/not confirmed/i.test(error.message)) return notConfirmed(email); return fail(errMsg(error)); }
   };
 }
 
