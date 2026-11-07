@@ -124,6 +124,9 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
 .dcard{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
 .chk{display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:4px 0;cursor:pointer}
 .chk input{margin-top:3px}
+.dtable{width:100%;border-collapse:collapse;font-size:14px}
+.dtable th{text-align:left;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:6px 10px;border-bottom:1.5px solid var(--line)}
+.dtable td{padding:8px 10px;border-bottom:1px solid var(--line)}
 .hidden{display:none!important}
 </style>
 </head>
@@ -837,7 +840,7 @@ async function refreshCatalog(){
 }
 
 /* ===================== PANEL DOCENTE ===================== */
-let DTAB='practicas', DEDIT=null;
+let DTAB='turnos', DEDIT=null;
 const allAreas = () => LABS.flatMap(l=>l.areas.map(a=>({id:a.id,name:a.name,lab:l.name})));
 function dflash(msg,kind){
   const b=document.getElementById('dmsg'); if(!b) return;
@@ -856,13 +859,74 @@ async function renderDocente(){
   const box=document.getElementById('docentebox');
   if(!(USER&&USER.docente)){ box.innerHTML='<div class="notice info">Esta sección es solo para el equipo docente.</div>'; return; }
   let pend=0; try{ const {data}=await sb.from('foro_hilos').select('id').is('respuesta',null); pend=(data||[]).length; }catch(e){}
-  const tabs=[['practicas','Prácticas'],['reglas','Reglas de uso'],['foro','Foro'+(pend?` (${pend} sin responder)`:'')],['docentes','Docentes']];
+  const tabs=[['turnos','Turnos'],['practicas','Prácticas'],['reglas','Reglas de uso'],['foro','Foro'+(pend?` (${pend} sin responder)`:'')],['docentes','Docentes']];
   box.innerHTML=`<div class="card"><h2>Panel docente</h2>
     <p class="muted small" style="margin:0">Lo que cargues acá lo ven los estudiantes enseguida.</p>
     <div class="seg">${tabs.map(([k,n])=>`<button data-dt="${k}" class="${DTAB===k?'on':''}">${n}</button>`).join('')}</div>
     <div id="dmsg"></div><div id="dbody"></div></div>`;
   box.querySelectorAll('[data-dt]').forEach(b=>b.onclick=()=>{DTAB=b.dataset.dt;DEDIT=null;renderDocente();});
-  await ({practicas:dPracticas,reglas:dReglas,foro:dForo,docentes:dDocentes})[DTAB]();
+  await ({turnos:dTurnos,practicas:dPracticas,reglas:dReglas,foro:dForo,docentes:dDocentes})[DTAB]();
+}
+
+/* --- Turnos (vista docente) --- */
+let DWEEK=0, DSEL=null;
+const DEST = {confirmado:['Confirmado','p-ok'], reservado:['Reservado (sin confirmar)','p-res'], espera:['En lista de espera','p-warn']};
+function dWeekDays(){
+  const m=new Date(); m.setHours(0,0,0,0); m.setDate(m.getDate()-((m.getDay()+6)%7)+7*DWEEK);
+  return [0,1,2,3,4,5].map(i=>{ const d=new Date(m); d.setDate(m.getDate()+i); return d; });
+}
+async function dTurnos(){
+  const body=document.getElementById('dbody');
+  body.innerHTML='<p class="muted">Cargando turnos…</p>';
+  const days=dWeekDays();
+  const {data,error}=await sb.rpc('turnos_docente',{p_desde:iso(days[0]),p_hasta:iso(days[5])});
+  if(error){ body.innerHTML=`<div class="notice bad">No se pudieron cargar los turnos: ${esc(error.message)}</div>`; return; }
+  const by={}; data.forEach(r=>{ (by[r.fecha+'|'+r.turno_id]=by[r.fecha+'|'+r.turno_id]||[]).push(r); });
+  const cnt=(L,e)=>L.filter(x=>x.estado===e).length;
+  const tot={c:cnt(data,'confirmado'), r:cnt(data,'reservado'), e:cnt(data,'espera')};
+  let h=`<div class="row" style="justify-content:space-between;margin-bottom:6px">
+    <h3 style="margin:0">Semana del ${days[0].getDate()} de ${MESES[days[0].getMonth()]} al ${days[5].getDate()} de ${MESES[days[5].getMonth()]}</h3>
+    <div class="row"><button class="btn sec" id="dwprev" ${DWEEK<=-4?'disabled':''}>← Anterior</button>
+    <button class="btn sec" id="dwhoy" ${DWEEK===0?'disabled':''}>Esta semana</button>
+    <button class="btn sec" id="dwnext" ${DWEEK>=8?'disabled':''}>Siguiente →</button></div></div>
+    <div class="mini" style="margin-top:0"><div class="box">Confirmados: <b>${tot.c}</b></div><div class="box">Reservados sin confirmar: <b>${tot.r}</b></div><div class="box">En lista de espera: <b>${tot.e}</b></div></div>
+    <div class="gridwrap"><table class="grid"><thead><tr><th class="franja"></th>${days.map(d=>`<th>${dayLabel(d)}</th>`).join('')}</tr></thead><tbody>`;
+  TURNOS.forEach(t=>{
+    h+=`<tr><th class="franja"><div class="f">${esc(t.f)}</div>${hh(t.ini)}–${hh(t.fin)}</th>`;
+    days.forEach(d=>{
+      if(d.getDay()===6 && t.id>=4){ h+='<td><div class="cell c-none">—</div></td>'; return; }
+      const k=iso(d)+'|'+t.id, L=by[k]||[], c=cnt(L,'confirmado'), r=cnt(L,'reservado'), e=cnt(L,'espera'), libres=Math.max(0,CAP-c-r);
+      const sel=DSEL===k?' c-sel':'';
+      if(!L.length){ h+=`<td><button class="cell c-free${sel}" data-dk="${k}"><div class="p">Libre</div><div class="q">${CAP} lugares disponibles</div></button></td>`; return; }
+      const pid=(L.find(x=>x.estado!=='espera')||L[0]).practica_id;
+      h+=`<td><button class="cell ${libres?'c-same':'c-full'}${sel}" data-dk="${k}"><div class="p">${esc((PRACT[pid]||{}).name||pid)}</div>
+        <div class="q">${c} confirm. · ${r} reserv.${e?` · ${e} en espera`:''}</div><div class="q"><b>${libres?`${libres} libres`:'Completo'}</b></div></button></td>`;
+    });
+    h+='</tr>';
+  });
+  h+=`</tbody></table></div>
+    <div class="legend"><span><i style="background:#fff"></i>Libre: nadie reservó</span><span><i style="background:var(--ok2)"></i>Con reservas y lugares libres</span><span><i style="background:var(--accent2)"></i>Completo</span></div>
+    <div id="dturnodet"></div>`;
+  body.innerHTML=h;
+  const det=document.getElementById('dturnodet');
+  const showDet=k=>{
+    DSEL=k; body.querySelectorAll('[data-dk]').forEach(b=>b.classList.toggle('c-sel',b.dataset.dk===k));
+    const [f,tid]=k.split('|'), t=TURNOS.find(x=>x.id===+tid), L=by[k]||[];
+    const orden={confirmado:0,reservado:1,espera:2};
+    const rows=[...L].sort((a,b)=>(orden[a.estado]-orden[b.estado])||a.nombre.localeCompare(b.nombre));
+    const ocup=cnt(L,'confirmado')+cnt(L,'reservado');
+    det.innerHTML=`<div class="dcard" style="margin-top:14px"><h3 style="margin-bottom:2px">${dayLabel(parseISO(f))} · ${turnoLabel(t)}</h3>
+      <div class="small muted" style="margin-bottom:10px">${L.length?esc((PRACT[(L.find(x=>x.estado!=='espera')||L[0]).practica_id]||{}).name||'')+' · ':''}${ocup} de ${CAP} lugares ocupados · ${Math.max(0,CAP-ocup)} disponibles</div>
+      ${L.length?`<div style="overflow-x:auto"><table class="dtable"><thead><tr><th>Estudiante</th><th>DNI</th><th>Celular</th><th>Área</th><th>Estado</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr><td>${esc(r.nombre)}</td><td>${esc(r.dni)}</td><td>${esc(r.celular)}</td><td>${esc(areaName(r.area_id))}</td><td><span class="pill ${DEST[r.estado][1]}">${DEST[r.estado][0]}</span></td></tr>`).join('')}</tbody></table></div>`
+      :'<p class="muted" style="margin:0">Nadie reservó este turno todavía.</p>'}</div>`;
+    det.scrollIntoView({block:'nearest',behavior:'smooth'});
+  };
+  body.querySelectorAll('[data-dk]').forEach(b=>b.onclick=()=>showDet(b.dataset.dk));
+  if(DSEL && DSEL.split('|')[0]>=iso(days[0]) && DSEL.split('|')[0]<=iso(days[5])) showDet(DSEL); else DSEL=null;
+  document.getElementById('dwprev').onclick=()=>{DWEEK--;DSEL=null;dTurnos();};
+  document.getElementById('dwnext').onclick=()=>{DWEEK++;DSEL=null;dTurnos();};
+  document.getElementById('dwhoy').onclick=()=>{DWEEK=0;DSEL=null;dTurnos();};
 }
 
 /* --- Prácticas --- */
