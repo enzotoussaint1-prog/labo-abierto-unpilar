@@ -251,8 +251,9 @@ const SUPABASE_URL = 'https://cdjsatazelokimilojxs.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_OeFgd6zm_lDs61SSfZV_kg_X7TfJQLw';
 const RECOVERY_LINK = /type=recovery/.test(location.hash); // el cliente limpia el hash al iniciar: se detecta antes
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const CONFIRM_TOKEN = new URLSearchParams(location.search).get('confirmar'); // link del correo de confirmación
-if(CONFIRM_TOKEN){ const q=new URLSearchParams(location.search); q.delete('confirmar'); history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:'')+location.hash); }
+const CONFIRM_TOKEN = new URLSearchParams(location.search).get('confirmar'); // link del correo: confirmar asistencia
+const CANCEL_TOKEN = new URLSearchParams(location.search).get('cancelar');   // link del correo: cancelar turno
+if(CONFIRM_TOKEN||CANCEL_TOKEN){ const q=new URLSearchParams(location.search); q.delete('confirmar'); q.delete('cancelar'); history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:'')+location.hash); }
 const PAGE_URL = location.origin + location.pathname; // adonde vuelven los links de los correos
 
 /* ===================== UTILIDADES ===================== */
@@ -1163,6 +1164,41 @@ function renderConfirmLink(token){
   });
 }
 
+// Cancelar desde el correo (mismo token). También pide un clic explícito.
+function renderCancelLink(token){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:1000;background:rgba(18,40,61,.55);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto';
+  document.body.appendChild(ov);
+  const card=h=>{ ov.innerHTML=`<div class="card" style="max-width:460px;width:100%"><h2 style="margin-top:0">Cancelar turno</h2>${h}</div>`; };
+  const close=async()=>{ ov.remove(); if(USER){ await loadMine(); slotsFor=null; renderMine(); } };
+  const cuando=d=>(d&&d.fecha&&d.hora_ini!=null)?`<br>${esc(dayLabel(parseISO(d.fecha)))} · ${hh(d.hora_ini)} a ${hh(d.hora_fin)}${d.practica?' · '+esc(d.practica):''}`:'';
+  const fin=(kind,msg)=>{ card(`<div class="notice ${kind}" style="margin-top:0">${msg}</div><div class="row" style="margin-top:16px"><button class="btn" id="cfclose">Ir a la turnera</button></div>`);
+    document.getElementById('cfclose').onclick=close; };
+  const resultado=d=>{
+    switch(d&&d.resultado){
+      case 'cancelado': return fin('ok',`<b>Cancelaste tu turno.</b>${cuando(d)}<br>El lugar quedó libre para otras personas. ¡Gracias por avisar!`);
+      case 'ya_cancelado': return fin('ok',`<b>Este turno ya estaba cancelado.</b>${cuando(d)}`);
+      case 'no_disponible': return fin('warn',`<b>Este turno ya no se puede cancelar</b> (ya pasó o se liberó).${cuando(d)}`);
+      default: return fin('bad','Este link no es válido. Usá el botón del correo más reciente.');
+    }
+  };
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) return resultado({resultado:'invalido'});
+  card('<p class="muted">Cargando…</p>');
+  sb.rpc('consultar_confirmacion',{p_token:token}).then(({data,error})=>{
+    if(error) return fin('bad','No pudimos verificar el link en este momento. Probá de nuevo en unos minutos.');
+    if(data.resultado==='invalido') return resultado(data);
+    card(`<p class="small muted" style="margin-top:0">¿Querés cancelar este turno?${cuando(data)}</p>
+      <div class="row" style="margin-top:16px"><button class="btn bad" id="cfgo">Cancelar turno</button><button class="btn sec" id="cfno">No, volver</button></div>`);
+    document.getElementById('cfno').onclick=close;
+    document.getElementById('cfgo').onclick=async()=>{
+      const b=document.getElementById('cfgo'); b.disabled=true; b.textContent='Cancelando…';
+      const r=await sb.rpc('cancelar_por_token',{p_token:token});
+      if(r.error) return fin('bad','No pudimos cancelar en este momento. Probá de nuevo en unos minutos.');
+      resultado(r.data);
+    };
+  });
+}
+
 /* ===================== ARRANQUE ===================== */
 async function boot(){
   const w=document.getElementById('wizard');
@@ -1173,6 +1209,7 @@ async function boot(){
   const n=new Date(); if(n.getDay()===0||(n.getDay()===6&&n.getHours()>=15)) W.week=1;
   buildDays(W.week);
   if(CONFIRM_TOKEN) renderConfirmLink(CONFIRM_TOKEN);
+  else if(CANCEL_TOKEN) renderCancelLink(CANCEL_TOKEN);
   sb.auth.onAuthStateChange((ev,session)=>{
     if(ev==='TOKEN_REFRESHED') return;
     if(ev==='PASSWORD_RECOVERY'){ RECOVERY=true; setTimeout(renderNewPassword,0); return; }
