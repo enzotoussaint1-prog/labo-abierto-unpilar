@@ -207,7 +207,7 @@ grant execute on function public.listar_docentes() to authenticated;
 grant execute on function public.agregar_docente(text) to authenticated;
 grant execute on function public.quitar_docente(uuid) to authenticated;
 
--- 6. Las prácticas ocultas no se pueden reservar (se agrega un control a reservar_turno)
+-- 6. (Versión vigente en la base) Reservar nunca confirma solo: la asistencia se confirma desde el correo de 24 h antes.
 create or replace function public.reservar_turno(p_fecha date, p_turno integer, p_practica text, p_area text)
 returns text
 language plpgsql security definer set search_path to 'public' as $function$
@@ -219,6 +219,7 @@ declare
   v_otra text;
   v_ocupados int;
   v_estado text;
+  v_hasta timestamptz;
 begin
   if uid is null then raise exception 'Tenés que ingresar para reservar'; end if;
   if not exists (select 1 from perfiles where id = uid) then
@@ -232,6 +233,9 @@ begin
   end if;
   v_inicio := (p_fecha + make_time(v_turno.hora_ini, 0, 0)) at time zone 'America/Argentina/Buenos_Aires';
   if v_inicio <= now() then raise exception 'Ese turno ya empezó o pasó'; end if;
+  if v_inicio < now() + interval '1 hour' then
+    raise exception 'Ya no se puede reservar este turno: falta menos de 1 hora y la asistencia se confirma desde el correo';
+  end if;
   if not exists (select 1 from practica_areas where practica_id = p_practica and area_id = p_area) then
     raise exception 'Esa práctica no corresponde a tu área';
   end if;
@@ -258,15 +262,14 @@ begin
    where fecha = p_fecha and turno_id = p_turno and estado in ('reservado','confirmado');
   if v_ocupados >= cupo then
     v_estado := 'espera';
-  elsif v_inicio < now() + interval '24 hours' then
-    v_estado := 'confirmado';
   else
     v_estado := 'reservado';
+    v_hasta := plazo_confirmacion(p_fecha, p_turno);
+    if v_hasta < now() + interval '1 hour' then v_hasta := v_inicio; end if;
   end if;
   begin
     insert into reservas (user_id, fecha, turno_id, practica_id, area_id, estado, confirmar_hasta)
-    values (uid, p_fecha, p_turno, p_practica, p_area, v_estado,
-            case when v_estado = 'reservado' then plazo_confirmacion(p_fecha, p_turno) end);
+    values (uid, p_fecha, p_turno, p_practica, p_area, v_estado, v_hasta);
   exception when unique_violation then
     raise exception 'Ya tenés un lugar en ese turno';
   end;
