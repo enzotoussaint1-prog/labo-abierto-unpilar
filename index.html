@@ -160,6 +160,7 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
   <nav id="tabs">
     <button data-v="reservar" class="on">Reservar turno</button>
     <button data-v="mis">Mis turnos y avisos</button>
+    <button data-v="tutorial">Tutorial</button>
     <button data-v="normas">Normas por práctica</button>
     <button data-v="reglas">Reglas de uso</button>
     <button data-v="foro">Foro de Laboratorio</button>
@@ -247,6 +248,9 @@ ul.clean{padding-left:18px;margin:6px 0} ul.clean li{margin:3px 0}
     <div id="docentebox"></div>
   </section>
 
+  <!-- TUTORIAL -->
+  <section id="v-tutorial" class="hidden"></section>
+
   <!-- QR -->
   <section id="v-qr" class="hidden">
     <div class="poster">
@@ -296,14 +300,14 @@ const errMsg = e => { const m=(e && e.message)||'';
   return ERR[m] || m || 'Ocurrió un error. Probá de nuevo.'; };
 
 /* ===================== CATÁLOGO (desde la base) ===================== */
-let LABS = [], PRACT = {}, TURNOS = [], REGLAS = [];
+let LABS = [], PRACT = {}, TURNOS = [], REGLAS = [], HAB = {};   // HAB['dia|turno'] = true si ese horario se dicta (lo define el docente)
 async function loadCatalog(){
-  const [l,a,p,pa,t,rg] = await Promise.all([
+  const [l,a,p,pa,t,rg,hs] = await Promise.all([
     sb.from('labs').select('*'), sb.from('areas').select('*').order('nombre'),
     sb.from('practicas').select('*').order('nombre'), sb.from('practica_areas').select('*'),
     sb.from('turnos').select('*').order('id'),
-    sb.from('reglas_uso').select('*').order('orden')]);
-  const bad = [l,a,p,pa,t,rg].find(x=>x.error); if(bad) throw bad.error;
+    sb.from('reglas_uso').select('*').order('orden'), sb.from('turnos_semana').select('*')]);
+  const bad = [l,a,p,pa,t,rg,hs].find(x=>x.error); if(bad) throw bad.error;
   LABS = l.data.sort((x,y)=>(y.activo-x.activo)||x.nombre.localeCompare(y.nombre)).map(x=>({
     id:x.id, name:x.nombre, desc:x.descripcion||'', active:x.activo,
     areas:a.data.filter(y=>y.lab_id===x.id).map(y=>({id:y.id,name:y.nombre}))}));
@@ -313,20 +317,24 @@ async function loadCatalog(){
     areas:pa.data.filter(y=>y.practica_id===x.id).map(y=>y.area_id)});
   TURNOS = t.data.map(x=>({id:x.id,f:x.franja,ini:x.hora_ini,fin:x.hora_fin}));
   REGLAS = rg.data;
+  HAB = {}; hs.data.forEach(x=>HAB[x.dia+'|'+x.turno_id]=x.habilitado);
 }
+const habil = (d,tid) => !!HAB[d.getDay()+'|'+tid];          // ¿se dicta práctica ese día de la semana y turno?
+const diaHabilitado = dia => TURNOS.some(t=>HAB[dia+'|'+t.id]);
 const areaName = id => { for(const l of LABS){ const a=l.areas.find(x=>x.id===id); if(a) return a.name; } return id; };
 
 /* ===================== SEMANA Y CUPOS ===================== */
 let DAYS = [], SLOTS = {}, slotsFor = null;
-const turnoExists = (di,ti) => !(DAYS[di].getDay()===6 && TURNOS[ti].id>=4);
+const turnoExists = (di,ti) => habil(DAYS[di], TURNOS[ti].id);
 function buildDays(week){
   const m=new Date(); m.setHours(0,0,0,0); m.setDate(m.getDate()-((m.getDay()+6)%7)+7*week);
   DAYS=[]; for(let i=0;i<6;i++){ const d=new Date(m); d.setDate(m.getDate()+i); DAYS.push(d); }
+  if(diaHabilitado(0)){ const d=new Date(m); d.setDate(m.getDate()+6); DAYS.push(d); }   // el domingo aparece solo si el docente habilitó algún turno
 }
 async function loadSlots(){
   SLOTS={};
   DAYS.forEach((d,di)=>TURNOS.forEach((t,ti)=>{ if(turnoExists(di,ti)) SLOTS[key(di,ti)]={prac:null,booked:0,wait:0}; }));
-  const {data,error}=await sb.rpc('cupos_rango',{p_desde:iso(DAYS[0]),p_hasta:iso(DAYS[5])});
+  const {data,error}=await sb.rpc('cupos_rango',{p_desde:iso(DAYS[0]),p_hasta:iso(DAYS[DAYS.length-1])});
   if(error) throw error;
   data.forEach(c=>{
     const di=DAYS.findIndex(d=>iso(d)===c.fecha), ti=TURNOS.findIndex(t=>t.id===c.turno_id);
@@ -342,8 +350,9 @@ function show(v){
   if(v==='docente' && !(USER&&USER.docente)) v='reservar';
   CUR=v;
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
-  ['reservar','mis','normas','reglas','foro','cuenta','docente','qr'].forEach(x=>document.getElementById('v-'+x).classList.toggle('hidden',x!==v));
+  ['reservar','mis','tutorial','normas','reglas','foro','cuenta','docente','qr'].forEach(x=>document.getElementById('v-'+x).classList.toggle('hidden',x!==v));
   if(v==='mis'){ renderMine(); loadMine().then(renderMine); }
+  if(v==='tutorial') renderTutorial();
   if(v==='foro') renderForo();
   if(v==='cuenta') renderCuenta();
   if(v==='docente') renderDocente();
@@ -507,7 +516,7 @@ function renderWizard(){
     <div class="notice info small">La reserva es individual: cada estudiante toma su propio lugar con sus datos. Si querés ir con compañeras o compañeros, cada uno reserva su lugar en el mismo turno.</div>`;
   }
   if(W.step===4){
-    h=`<h2>Elegí día y turno</h2><p class="muted small" style="margin:0">${esc(PRACT[W.prac].name)} · semana del ${DAYS[0].getDate()} al ${DAYS[5].getDate()} de ${MESES[DAYS[5].getMonth()]}</p>
+    h=`<h2>Elegí día y turno</h2><p class="muted small" style="margin:0">${esc(PRACT[W.prac].name)} · semana del ${DAYS[0].getDate()} al ${DAYS[DAYS.length-1].getDate()} de ${MESES[DAYS[DAYS.length-1].getMonth()]}</p>
     <div class="row" style="margin:10px 0"><button class="btn sec" id="wprev" ${W.week===0?'disabled':''}>← Semana anterior</button><button class="btn sec" id="wnext" ${W.week>=3?'disabled':''}>Semana siguiente →</button></div>
     ${activeCount()>=2?'<div class="notice warn">Ya tenés 2 turnos activos, que es el máximo por estudiante. Para reservar otro, primero cancelá uno.</div>':''}
     <div class="gridwrap"><table class="grid"><thead><tr><th class="franja"></th>${DAYS.map(d=>`<th>${dayLabel(d)}</th>`).join('')}</tr></thead><tbody>`;
@@ -561,7 +570,7 @@ function renderWizard(){
   bindWizard();
 }
 function cellHTML(di,ti){
-  if(!turnoExists(di,ti)) return `<div class="cell c-none">—</div>`;
+  if(!turnoExists(di,ti)) return `<div class="cell c-none" title="No se dictan prácticas en este horario">—</div>`;
   const k=key(di,ti), s=SLOTS[k], free=CAP-s.booked, sel=W.slot===k?' c-sel':'', dk=iso(DAYS[di]);
   if(startDate(DAYS[di],ti)<=new Date()) return `<div class="cell c-none">—</div>`;
   if(MY.some(r=>r.fecha===dk&&r.ti===ti&&['reservado','confirmado','espera'].includes(r.status))) return `<button class="cell" style="background:var(--brand2)" disabled><div class="p">${s.prac?esc(PRACT[s.prac].name):''}</div><div class="q">Ya tenés este turno</div></button>`;
@@ -912,13 +921,13 @@ async function renderDocente(){
   const box=document.getElementById('docentebox');
   if(!(USER&&USER.docente)){ box.innerHTML='<div class="notice info">Esta sección es solo para el equipo docente.</div>'; return; }
   let pend=0; try{ const {data}=await sb.from('foro_hilos').select('id').is('respuesta',null); pend=(data||[]).length; }catch(e){}
-  const tabs=[['turnos','Turnos'],['practicas','Prácticas'],['reglas','Reglas de uso'],['foro','Foro'+(pend?` (${pend} sin responder)`:'')],['docentes','Docentes']];
+  const tabs=[['turnos','Turnos'],['horarios','Horarios'],['practicas','Prácticas'],['reglas','Reglas de uso'],['foro','Foro'+(pend?` (${pend} sin responder)`:'')],['docentes','Docentes']];
   box.innerHTML=`<div class="card"><h2>Panel docente</h2>
     <p class="muted small" style="margin:0">Lo que cargues acá lo ven los estudiantes enseguida.</p>
     <div class="seg">${tabs.map(([k,n])=>`<button data-dt="${k}" class="${DTAB===k?'on':''}">${n}</button>`).join('')}</div>
     <div id="dmsg"></div><div id="dbody"></div></div>`;
   box.querySelectorAll('[data-dt]').forEach(b=>b.onclick=()=>{DTAB=b.dataset.dt;DEDIT=null;renderDocente();});
-  await ({turnos:dTurnos,practicas:dPracticas,reglas:dReglas,foro:dForo,docentes:dDocentes})[DTAB]();
+  await ({turnos:dTurnos,horarios:dHorarios,practicas:dPracticas,reglas:dReglas,foro:dForo,docentes:dDocentes})[DTAB]();
 }
 
 /* --- Turnos (vista docente) --- */
@@ -926,19 +935,19 @@ let DWEEK=0, DSEL=null;
 const DEST = {confirmado:['Confirmado','p-ok'], reservado:['Reservado (sin confirmar)','p-res'], espera:['En lista de espera','p-warn']};
 function dWeekDays(){
   const m=new Date(); m.setHours(0,0,0,0); m.setDate(m.getDate()-((m.getDay()+6)%7)+7*DWEEK);
-  return [0,1,2,3,4,5].map(i=>{ const d=new Date(m); d.setDate(m.getDate()+i); return d; });
+  return [0,1,2,3,4,5,...(diaHabilitado(0)?[6]:[])].map(i=>{ const d=new Date(m); d.setDate(m.getDate()+i); return d; });
 }
 async function dTurnos(){
   const body=document.getElementById('dbody');
   body.innerHTML='<p class="muted">Cargando turnos…</p>';
   const days=dWeekDays();
-  const {data,error}=await sb.rpc('turnos_docente',{p_desde:iso(days[0]),p_hasta:iso(days[5])});
+  const {data,error}=await sb.rpc('turnos_docente',{p_desde:iso(days[0]),p_hasta:iso(days[days.length-1])});
   if(error){ body.innerHTML=`<div class="notice bad">No se pudieron cargar los turnos: ${esc(error.message)}</div>`; return; }
   const by={}; data.forEach(r=>{ (by[r.fecha+'|'+r.turno_id]=by[r.fecha+'|'+r.turno_id]||[]).push(r); });
   const cnt=(L,e)=>L.filter(x=>x.estado===e).length;
   const tot={c:cnt(data,'confirmado'), r:cnt(data,'reservado'), e:cnt(data,'espera')};
   let h=`<div class="row" style="justify-content:space-between;margin-bottom:6px">
-    <h3 style="margin:0">Semana del ${days[0].getDate()} de ${MESES[days[0].getMonth()]} al ${days[5].getDate()} de ${MESES[days[5].getMonth()]}</h3>
+    <h3 style="margin:0">Semana del ${days[0].getDate()} de ${MESES[days[0].getMonth()]} al ${days[days.length-1].getDate()} de ${MESES[days[days.length-1].getMonth()]}</h3>
     <div class="row"><button class="btn sec" id="dwprev" ${DWEEK<=-4?'disabled':''}>← Anterior</button>
     <button class="btn sec" id="dwhoy" ${DWEEK===0?'disabled':''}>Esta semana</button>
     <button class="btn sec" id="dwnext" ${DWEEK>=8?'disabled':''}>Siguiente →</button></div></div>
@@ -947,7 +956,7 @@ async function dTurnos(){
   TURNOS.forEach(t=>{
     h+=`<tr><th class="franja"><div class="f">${esc(t.f)}</div>${hh(t.ini)}–${hh(t.fin)}</th>`;
     days.forEach(d=>{
-      if(d.getDay()===6 && t.id>=4){ h+='<td><div class="cell c-none">—</div></td>'; return; }
+      if(!habil(d,t.id)){ h+='<td><div class="cell c-none" title="Horario deshabilitado">—</div></td>'; return; }
       const k=iso(d)+'|'+t.id, L=by[k]||[], c=cnt(L,'confirmado'), r=cnt(L,'reservado'), e=cnt(L,'espera'), libres=Math.max(0,CAP-c-r);
       const sel=DSEL===k?' c-sel':'';
       if(!L.length){ h+=`<td><button class="cell c-free${sel}" data-dk="${k}"><div class="p">Libre</div><div class="q">${CAP} lugares disponibles</div></button></td>`; return; }
@@ -976,7 +985,7 @@ async function dTurnos(){
     det.scrollIntoView({block:'nearest',behavior:'smooth'});
   };
   body.querySelectorAll('[data-dk]').forEach(b=>b.onclick=()=>showDet(b.dataset.dk));
-  if(DSEL && DSEL.split('|')[0]>=iso(days[0]) && DSEL.split('|')[0]<=iso(days[5])) showDet(DSEL); else DSEL=null;
+  if(DSEL && DSEL.split('|')[0]>=iso(days[0]) && DSEL.split('|')[0]<=iso(days[days.length-1])) showDet(DSEL); else DSEL=null;
   document.getElementById('dwprev').onclick=()=>{DWEEK--;DSEL=null;dTurnos();};
   document.getElementById('dwnext').onclick=()=>{DWEEK++;DSEL=null;dTurnos();};
   document.getElementById('dwhoy').onclick=()=>{DWEEK=0;DSEL=null;dTurnos();};
@@ -1114,6 +1123,37 @@ async function dForo(){
 }
 
 /* --- Docentes --- */
+/* --- Horarios: qué días y turnos se dictan prácticas --- */
+async function dHorarios(){
+  const body=document.getElementById('dbody');
+  body.innerHTML='<p class="muted">Cargando horarios…</p>';
+  const [hs,rv]=await Promise.all([sb.from('turnos_semana').select('*'), sb.rpc('reservas_en_horarios_deshabilitados')]);
+  if(hs.error){ body.innerHTML=`<div class="notice bad">${esc(hs.error.message)}</div>`; return; }
+  HAB={}; hs.data.forEach(x=>HAB[x.dia+'|'+x.turno_id]=x.habilitado);
+  const ORDEN=[1,2,3,4,5,6,0], NOM=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const diaOn=d=>TURNOS.every(t=>HAB[d+'|'+t.id]);
+  let h=`<h3 style="margin-top:0">Horarios en los que se dictan prácticas</h3>
+    <p class="small muted" style="margin:0">Tocá un horario para habilitarlo o deshabilitarlo en ese día de la semana (vale para todas las semanas). Los estudiantes solo pueden reservar en los horarios habilitados. En un horario deshabilitado no se aceptan reservas nuevas ni lista de espera; las reservas que ya existían se mantienen y las ves más abajo.</p>
+    <div class="gridwrap"><table class="grid"><thead><tr><th class="franja"></th>${ORDEN.map(d=>`<th>${NOM[d]}<br><button class="btn sec" style="padding:3px 8px;font-size:12px;margin-top:4px" data-hdia="${d}">${diaOn(d)?'Deshabilitar día':'Habilitar día'}</button></th>`).join('')}</tr></thead><tbody>`;
+  TURNOS.forEach(t=>{
+    h+=`<tr><th class="franja"><div class="f">${esc(t.f)}</div>${hh(t.ini)}–${hh(t.fin)}</th>`;
+    ORDEN.forEach(d=>{ const on=!!HAB[d+'|'+t.id];
+      h+=`<td><button class="cell ${on?'c-same':'c-free'}" data-h="${d}|${t.id}" style="${on?'':'background:#f1f3f5;color:var(--muted)'}"><div class="p">${on?'Habilitado':'Deshabilitado'}</div><div class="q">${on?'se dicta':'no se dicta'}</div></button></td>`; });
+    h+='</tr>';
+  });
+  h+=`</tbody></table></div>
+    <div class="legend"><span><i style="background:var(--ok2)"></i>Habilitado: los estudiantes pueden reservar</span><span><i style="background:#f1f3f5"></i>Deshabilitado: no se dicta práctica</span></div>`;
+  const af=(rv&&!rv.error&&rv.data)||[];
+  if(af.length) h+=`<div class="notice warn"><b>Hay reservas en horarios que ahora están deshabilitados.</b> Se mantienen; podés ver quiénes son en la pestaña Turnos y avisarles.
+    <ul class="clean small">${af.map(a=>{ const t=TURNOS.find(x=>x.id===a.turno_id); return `<li>${esc(dayLabel(parseISO(a.fecha)))}${t?' · '+turnoLabel(t):''}: ${a.ocupados} reserva${a.ocupados===1?'':'s'}${a.en_espera?` y ${a.en_espera} en lista de espera`:''}</li>`; }).join('')}</ul></div>`;
+  body.innerHTML=h;
+  const despues=async()=>{ await dHorarios(); buildDays(W.week); slotsFor=null; renderWizard(); };
+  body.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>{ const [d,t]=b.dataset.h.split('|').map(Number); b.disabled=true;
+    dcall(sb.rpc('configurar_turno_semana',{p_dia:d,p_turno:t,p_habilitado:!HAB[d+'|'+t]}),'Horario actualizado.',despues).then(ok=>{ if(!ok) b.disabled=false; }); });
+  body.querySelectorAll('[data-hdia]').forEach(b=>b.onclick=()=>{ const d=+b.dataset.hdia; b.disabled=true;
+    dcall(sb.rpc('configurar_turno_semana',{p_dia:d,p_turno:null,p_habilitado:!diaOn(d)}),'Día actualizado.',despues).then(ok=>{ if(!ok) b.disabled=false; }); });
+}
+
 async function dDocentes(){
   const body=document.getElementById('dbody');
   body.innerHTML='<p class="muted">Cargando…</p>';
@@ -1140,6 +1180,47 @@ function renderQR(){
   const box=document.getElementById('qrbox');
   try{ new QRCode(box,{text:location.href.split('#')[0],width:200,height:200,colorDark:'#16302b',colorLight:'#ffffff'}); }
   catch(e){ box.innerHTML='<div class="small muted">[Código QR al sitio]</div>'; }
+}
+
+/* ===================== TUTORIAL ===================== */
+let TUT=null;
+function renderTutorial(){
+  if(!TUT) TUT=(USER&&USER.docente)?'docente':'estudiante';
+  const step=(n,t,b,nuevo)=>`<div class="card" style="margin-top:14px"><div class="row" style="gap:12px;align-items:flex-start;flex-wrap:nowrap">
+    <div style="flex:none;width:32px;height:32px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:700">${n}</div>
+    <div style="min-width:0"><h3 style="margin:3px 0 6px">${t}${nuevo?' <span class="pill p-ok">Nuevo</span>':''}</h3>${b}</div></div></div>`;
+  const est=[
+    ['Creá tu cuenta y verificá tu correo',`<p class="small" style="margin:0">Registrate con tu nombre, DNI, celular, correo y una contraseña, y aceptá recibir los avisos por correo. Te llega un correo para <b>verificar tu dirección</b>: tocá el link y recién ahí podés ingresar (si no lo ves, mirá en spam; al intentar ingresar podés pedir que te lo reenvíen). Si te olvidás la contraseña, usá “Recuperar contraseña”.</p>`],
+    ['Reservá tu turno',`<p class="small" style="margin:0">En <b>Reservar turno</b> elegís en cinco pasos: laboratorio → área (carrera) → práctica → día y horario → confirmación. La grilla semanal muestra, en cada horario, la práctica y cuántos lugares quedan de 12.</p>
+      <ul class="clean small"><li><b>Blanco:</b> nadie reservó todavía, vos definís la práctica del turno.</li><li><b>Verde:</b> ya hay reservas de tu misma práctica y quedan lugares.</li><li><b>Naranja:</b> completo; podés anotarte en lista de espera.</li><li><b>Gris:</b> ese turno es de otra práctica.</li><li><b>Raya (—):</b> en ese día y horario no se dictan prácticas. La universidad define qué días y turnos hay, y puede cambiarlos.</li></ul>
+      <p class="small muted" style="margin:0">Reglas: un turno dura 2 horas, una sola práctica por turno, un lugar por persona en cada turno, máximo 2 turnos activos a la vez, y se puede reservar hasta 1 hora antes del inicio.</p>`],
+    ['Lista de espera',`<p class="small" style="margin:0">Si el turno está completo, anotate en la lista de espera. Si alguien cancela o no confirma, el lugar pasa a la primera persona de la lista y te avisamos por correo.</p>`],
+    ['Confirmá tu asistencia desde el correo',`<p class="small" style="margin:0"><b>24 horas antes</b> del turno te llega un correo con el botón <b>“Confirmar asistencia”</b>. Esa es la única forma de confirmar: antes de ese momento no se puede, y la página no tiene botón de confirmar. El correo indica hasta cuándo tenés plazo. Si reservás con menos de 24 h de anticipación, el correo te llega en unos minutos.</p>
+      <ul class="clean small"><li>Si no confirmás a tiempo, el lugar se libera y se avisa a la lista de espera.</li><li>Dos turnos liberados en una semana suspenden tus reservas por 7 días.</li><li>Si no vas a poder ir, cancelalo desde <b>Mis turnos</b> o desde el correo, así otra persona lo aprovecha.</li></ul>`],
+    ['Mis turnos y el material de tu práctica',`<p class="small" style="margin:0">En <b>Mis turnos y avisos</b> ves el estado de cada reserva (reservado, confirmado, en lista de espera, cancelado o liberado). Debajo de cada turno vigente tenés todo lo de tu práctica: equipamiento, protección personal, precauciones y, si el docente lo cargó, el <b>PDF</b> y el <b>video</b> explicativo. “Simular avisos” es una demostración de cómo funcionan los plazos y no toca tus reservas.</p>`],
+    ['Normas, reglas de uso y foro',`<p class="small" style="margin:0"><b>Normas por práctica</b> reúne las precauciones y el material de cada práctica. <b>Reglas de uso</b> explica cómo se organizan los turnos. En el <b>Foro de Laboratorio</b> podés dejar consultas sobre una práctica y el equipo docente te responde ahí mismo.</p>`],
+    ['Tu cuenta y el cartel QR',`<p class="small" style="margin:0">En <b>Mi cuenta</b> corregís tus datos o eliminás tu cuenta. El <b>Cartel QR</b> lleva a esta página y está pensado para colgarse en la puerta del laboratorio.</p>`]
+  ];
+  const doc=[
+    ['Ingresá al Panel docente',`<p class="small" style="margin:0">Si tu cuenta tiene acceso docente, aparece la pestaña <b>Panel docente</b>. Para darle acceso a otra persona, tiene que registrarse en la turnera y después agregarla desde la sección <b>Docentes</b> con su correo.</p>`],
+    ['Horarios: elegí qué días y turnos se dictan',`<p class="small" style="margin:0">En <b>Panel docente → Horarios</b> ves una grilla con los días de la semana y los turnos. Tocá un horario para <b>habilitarlo o deshabilitarlo</b> (vale todas las semanas), o usá “Habilitar día” / “Deshabilitar día” para cambiar un día completo. Así la universidad regula cuándo se dictan prácticas.</p>
+      <ul class="clean small"><li>Los estudiantes solo pueden reservar en horarios habilitados; los demás aparecen con una raya (—).</li><li>En un horario deshabilitado no entran reservas nuevas ni lista de espera.</li><li>Las reservas que ya existían se mantienen: la misma pantalla te lista cuáles son, y desde <b>Turnos</b> ves quiénes son para avisarles.</li><li>Por defecto: lunes a viernes todos los turnos, sábados mañana y tarde, domingo cerrado. Podés habilitar el domingo si hace falta.</li></ul>`,true],
+    ['Turnos: quién reservó',`<p class="small" style="margin:0">En <b>Turnos</b> navegás por semana y tocás un horario para ver quién reservó, con nombre, DNI, celular, área y estado (confirmado, reservado sin confirmar o en lista de espera).</p>`],
+    ['Prácticas y material de apoyo',`<p class="small" style="margin:0">En <b>Prácticas</b> creás, editás u ocultás prácticas, y definís equipamiento, protección, precauciones y las áreas a las que corresponden (ocultar no afecta las reservas existentes). En cada práctica podés subir un <b>PDF</b> (hasta 20 MB) y/o un <b>video</b> (archivo hasta 50 MB, o un link de YouTube o Drive). Se guarda aparte con “Guardar material”, y los estudiantes lo ven en Normas y en Mis turnos.</p>`],
+    ['Reglas de uso',`<p class="small" style="margin:0">Editás, ordenás y borrás el texto de las reglas que leen los estudiantes. Los límites reales (12 lugares por turno, 2 turnos activos, plazos de confirmación) los aplica el sistema.</p>`],
+    ['Foro',`<p class="small" style="margin:0">Ves todas las consultas, con un aviso de cuántas esperan respuesta, y las respondés. La respuesta se publica en el foro de los estudiantes.</p>`],
+    ['Docentes',`<p class="small" style="margin:0">Agregás o quitás el acceso al panel de otras personas por su correo.</p>`]
+  ];
+  const lista=(TUT==='docente'?doc:est);
+  document.getElementById('v-tutorial').innerHTML=`<div class="card">
+    <h2>Tutorial: qué te permite Labo Abierto</h2>
+    <p class="muted small" style="margin:0">Labo Abierto UNPILAR es la turnera de los laboratorios de la Universidad Nacional de Pilar. Los estudiantes reservan turnos de práctica y reciben avisos por correo; el equipo docente administra horarios, prácticas, material y foro. Elegí tu rol para ver cómo funciona.</p>
+    <div class="seg"><button data-tut="estudiante" class="${TUT==='estudiante'?'on':''}">Soy estudiante</button><button data-tut="docente" class="${TUT==='docente'?'on':''}">Soy docente</button></div></div>
+    ${lista.map((x,i)=>step(i+1,x[0],x[1],x[2])).join('')}
+    <div class="card" style="margin-top:14px"><h3 style="margin-top:0">Avisos automáticos por correo</h3>
+      <ul class="clean small"><li><b>Recordatorio (24 h antes):</b> trae el botón para confirmar la asistencia.</li><li><b>Turno liberado:</b> si no confirmaste a tiempo, el lugar se libera y te avisamos.</li><li><b>Lugar ofrecido:</b> si estabas en lista de espera y se liberó un lugar, tenés un plazo corto para confirmarlo desde el correo.</li></ul>
+      <h3>Privacidad</h3><p class="small" style="margin:0">Cada estudiante ve solo sus propias reservas; de las demás personas solo ve cuántos lugares quedan. Los datos de quienes reservaron los ve únicamente el equipo docente.</p></div>`;
+  document.querySelectorAll('[data-tut]').forEach(b=>b.onclick=()=>{ TUT=b.dataset.tut; renderTutorial(); window.scrollTo(0,0); });
 }
 
 /* ===================== CONFIRMACIÓN DESDE EL CORREO ===================== */
